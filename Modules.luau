@@ -1,20 +1,4 @@
---[[
-    Modules | WindUI AutoTranslate adapter | v0.1.0-beta
-    Single-file Luau module. No external Lua dependencies.
-
-    WindUI author: Footagesus — https://github.com/Footagesus/WindUI (MIT)
-    Translation engine adapted from the USER-SUPPLIED Fluent Gen2 main.lua,
-    language-manager block. Original attribution is retained here; this file
-    does not establish or replace the upstream Fluent Gen2 license. Verify
-    that license before publishing or redistributing the adapted engine.
-
-    Load -> Modules:Install(WindUI) -> WindUI:Localization -> CreateWindow.
-    This is an adapter, not a claim of universal WindUI compatibility.
-    Unofficial Google translation endpoints can fail or rate-limit.
-    Text sent for automatic translation leaves the Roblox client.
-]]
-
-local Modules = { Version = "0.1.0-beta" }
+local Modules = { Version = "0.1.0" }
 local Installed = setmetatable({}, { __mode = "k" })
 local httpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
@@ -105,7 +89,6 @@ local function newManager(WindUI)
     end
 
     function LM:Format(record, value)
-        -- Do not reinterpret WindUI RichText as Fluent MiniMessage markup.
         return value
     end
 
@@ -368,7 +351,6 @@ local function newManager(WindUI)
         properties = properties or {}
         local records = {}
         self.Records[object] = records
-        -- Never observe or rewrite user-entered TextBox.Text.
         local names = object:IsA("TextBox") and {"PlaceholderText"} or {"Text"}
         for _, property in ipairs(names) do
             local raw = type(properties[property]) == "string" and properties[property] or object[property]
@@ -380,8 +362,6 @@ local function newManager(WindUI)
             table.insert(record.Connections, object:GetPropertyChangedSignal(property):Connect(function()
                 local current = object[property]
                 if current == record.Expected then return end
-                -- Only per-record produced values are recognized; do not guess the
-                -- original from a global reverse dictionary (ambiguous translations).
                 if record.Produced and record.Produced[current] and current ~= record.Source then
                     self:Apply(record)
                     return
@@ -1406,8 +1386,6 @@ local function newManager(WindUI)
         if raw:sub(1, #prefix) == prefix then
             local key = raw:sub(#prefix + 1)
             local defaults = self.KeyTranslations[self.SourceLanguage] or {}
-            -- A missing source must be provided in the default dictionary;
-            -- never send a localization identifier as natural-language text.
             if type(defaults[key]) ~= "string" then
                 local fallback = "[" .. key .. "]"
                 self.MissingSources[fallback] = true
@@ -1482,7 +1460,6 @@ function Controller:_configure()
                 end
                 value = dict[key]
             end
-            -- Ambiguous source strings are resolved per localization key only.
             if complete then flat[code][sourceText] = value end
         end
         for key, value in pairs(dict) do
@@ -1506,7 +1483,6 @@ function Controller:_configure()
     options.Concurrency = options.Concurrency or 2
     options.BatchSize = options.BatchSize or 40
     options.RequestInterval = options.RequestInterval or 0.3
-    -- Avoid translating language names or selector values.
     local terms = {}
     for _, term in ipairs(options.NoTranslations or {}) do terms[#terms + 1] = term end
     local codes = {}
@@ -1516,7 +1492,6 @@ function Controller:_configure()
     end
     options.NoTranslations = terms
     options.Languages = options.Languages or codes
-    -- A reconfigure preserves a live choice unless Language is explicit.
     if manager.Config and options.Language == nil and self.ConfiguredFolder == self.Folder then
         options.Language = manager.CurrentLanguage
     end
@@ -1688,8 +1663,6 @@ function Modules:Install(WindUI, options)
         assert(not controller.Dead, "Modules controller was destroyed")
         assert(type(config) == "table", "Localization expects a configuration table")
         controller.Options = copy(config)
-        -- Disable native rendering, otherwise native fallback writes race the
-        -- adapter and overwrite automatic translations. No source-file edit.
         local original = controller.Original.Localization
         if type(original) == "function" then
             local native = copy(config)
@@ -1712,7 +1685,6 @@ function Modules:Install(WindUI, options)
     end)
     hook("GetLanguage", function() return controller:GetLanguage() end)
     hook("CreateWindow", function(_, config)
-        -- Copy only the top level: do not mutate the caller's config.
         local window = controller.Original.CreateWindow(WindUI, config)
         if window then controller:BindWindow(window, config.Folder) end
         return window
