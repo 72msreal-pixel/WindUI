@@ -987,6 +987,8 @@ local function newManager(WindUI)
         ru = {Title = "Язык", Start = "Перевод на %s...", Done = "Перевод завершён (%s)", Fail = "Ошибка перевода (%s), повтор позже"},
     }
 
+    local DEFAULT_ICONS = {Start = "languages", Done = "circle-check", Fail = "triangle-alert"}
+
     function LM:Toast(kind, language)
         if self.Dead or not self.Config.Notifications then return end
         local code = language:match("^[a-z]+") or language
@@ -997,11 +999,25 @@ local function newManager(WindUI)
             local default = MESSAGES[code] or MESSAGES.en
             return default[field] or MESSAGES.en[field]
         end
+        local function pickIcon()
+            local icons = type(self.Config.Icons) == "table" and self.Config.Icons or nil
+            local name = icons and icons[kind]
+            if name == nil then name = DEFAULT_ICONS[kind] end
+            if name == false or type(name) ~= "string" or name == "" then return nil end
+            if name:sub(1, 13) == "rbxassetid://" then return name end
+            local pack = WindUI.Icons
+            if type(pack) == "table" and type(pack.Icon) == "function" then
+                local okIcon, found = pcall(pack.Icon, name)
+                if not okIcon or not found then return nil end
+            end
+            return name
+        end
         local ok, notification = pcall(function()
             return Library:Notify({
                 Title = pick("Title"),
                 Content = string.format(pick(kind), language:upper()),
                 Duration = kind == "Fail" and 6 or 4,
+                Icon = pickIcon(),
             })
         end)
         if ok and type(notification) == "table" then
@@ -1336,7 +1352,7 @@ local function newManager(WindUI)
             RetryCooldown = math.max(5, tonumber(options.RetryCooldown) or 60),
             Request = options.Request, OnError = options.OnError,
             Verify = options.Verify ~= false, OnRepair = options.OnRepair,
-            Notifications = options.Notifications ~= false, Messages = options.Messages,
+            Notifications = options.Notifications ~= false, Messages = options.Messages, Icons = options.Icons,
             SyncSwap = options.SyncSwap ~= false,
             SwapTimeout = math.max(2, tonumber(options.SwapTimeout) or 10),
             FrameBudget = math.max(0.0005, math.min(0.012, tonumber(options.FrameBudget) or 0.003)),
