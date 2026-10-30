@@ -36,7 +36,7 @@ Có sẵn **30 ngôn ngữ** trong dropdown. Có thể hơi dài dòng một ch�
 ## Cần gì để chạy
 
 - Executor chạy được `loadstring` và `game:HttpGet`.
-- WindUI bản bạn đang dùng (ở đây là bản `WindUI-Mod`), vì module hook vào `CreateWindow`, `Localization`, `SetLanguage`.
+- WindUI bản bạn đang dùng (ở đây là bản `WindUI`), vì module hook vào `CreateWindow`, `Localization`, `SetLanguage`.
 - Muốn **tự dịch** thì executor phải gọi được Google Translate (bằng `request`/`http_request` hoặc `HttpGet`). Nếu không gọi được thì chỉ có những ngôn ngữ bạn tự viết bảng dịch là hoạt động, mấy cái còn lại giữ nguyên tiếng gốc.
 - Muốn có cache thì executor cần có `readfile` / `writefile` (không có cũng chạy, chỉ là không lưu).
 
