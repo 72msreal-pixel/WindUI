@@ -163,14 +163,37 @@ local function newManager(WindUI)
         return text
     end
 
+    function LM:Templatize(source)
+        if type(source) ~= "string" or not source:find("%d") then return source, nil end
+        if source:find("{n%d+}") then return source, nil end
+        if not source:match("[%a\128-\255]") then return source, nil end
+        local numbers = {}
+        local template = source:gsub("%d[%d%.,]*", function(match)
+            local core = match:match("^(.-)[%.,]*$")
+            local tail = match:sub(#core + 1)
+            numbers[#numbers + 1] = core
+            return "{n" .. #numbers .. "}" .. tail
+        end)
+        return template, numbers
+    end
+
+    function LM:FillNumbers(text, numbers)
+        return (text:gsub("{n(%d+)}", function(index) return numbers[tonumber(index)] end))
+    end
+
     function LM:Lookup(source, language)
         if self.Config.NoTranslate[source] then return source, true end
         local dict = self.Config.Translations[language]
         if type(dict) == "table" and type(dict[source]) == "string" then return dict[source], true end
         if language == self.Config.SourceLanguage then return source, true end
+        if not source:match("[%a\128-\255]") then return source, true end
         if self.Config.AutoTranslations then
             local cache = self.Cache[language]
-            if cache and type(cache[source]) == "string" then return cache[source], true end
+            local key, numbers = self:Templatize(source)
+            local cached = cache and cache[key]
+            if type(cached) == "string" then
+                return numbers and self:FillNumbers(cached, numbers) or cached, true
+            end
         end
         return self:Fallback(source), false
     end
@@ -390,6 +413,7 @@ local function newManager(WindUI)
         end
         local result, seen = {}, {}
         local function add(source)
+            source = self:Templatize(source)
             if not seen[source] then
                 seen[source] = true
                 result[#result + 1] = source
@@ -869,7 +893,7 @@ local function newManager(WindUI)
     end
 
     function LM:Repair(language, source, value, reason, epoch)
-        if source:find("<", 1, true) or self:HasProtected(source) then return value, "ok" end
+        if source:find("<", 1, true) or source:find("{n%d+}") or self:HasProtected(source) then return value, "ok" end
         local lead, tail = source:match("^%s*") or "", source:match("%s*$") or ""
         local fresh, why = self:Plain(source, self.Config.SourceLanguage, language, epoch, language)
         if why == "cancelled" then return nil, "cancelled" end
