@@ -1,57 +1,57 @@
-# Modules.luau - Hệ thống đa ngôn ngữ cho WindUI
+# Modules.luau - Multi-Language System for WindUI
 
-Ừm, nói ngắn gọn thì đây là một cái module nhỏ gắn thêm vào WindUI để UI của bạn đổi được ngôn ngữ. Bạn tự viết bản dịch cho vài ngôn ngữ mình muốn (ví dụ `en` và `vi`), còn mấy ngôn ngữ còn lại thì để nó tự dịch bằng Google Translate. Bản dịch được lưu cache vào file, nên lần sau mở lại không phải dịch từ đầu.
+So basically, this is a small module you plug into WindUI so your UI can switch languages. You write the translations yourself for a few languages you care about (like `en` and `vi`), and it'll auto-translate the rest with Google Translate. Translations get cached to a file, so next time you open it, it doesn't have to start from scratch.
 
-Có sẵn **30 ngôn ngữ** trong dropdown. Có thể hơi dài dòng một chút, nhưng mình viết kỹ để lần sau bạn (hoặc ai đó) mở ra đọc là làm được liền.
-
----
-
-## Mục lục
-
-1. [Nó làm được gì](#nó-làm-được-gì)
-2. [Cần gì để chạy](#cần-gì-để-chạy)
-3. [Cài đặt nhanh (copy là chạy)](#cài-đặt-nhanh)
-4. [Cách viết chữ trong UI](#cách-viết-chữ-trong-ui)
-5. [Tất cả option của Localization](#tất-cả-option-của-localization)
-6. [Các hàm bạn có thể gọi](#các-hàm-bạn-có-thể-gọi)
-7. [Icon cho thông báo dịch](#icon-cho-thông-báo-dịch)
-8. [Tùy chỉnh nội dung thông báo](#tùy-chỉnh-nội-dung-thông-báo)
-9. [Chặn một chữ không cho dịch](#chặn-một-chữ-không-cho-dịch)
-10. [Cache lưu ở đâu](#cache-lưu-ở-đâu)
-11. [Code mẫu đầy đủ](#code-mẫu-đầy-đủ)
-12. [Lỗi hay gặp](#lỗi-hay-gặp)
+There are **30 languages** built into the dropdown. This might run a bit long, but I wanted to write it up properly so that next time you (or anyone else) opens it, you can just get going.
 
 ---
 
-## Nó làm được gì
+## Table of Contents
 
-- Đổi ngôn ngữ cả UI ngay lúc đang chạy, không cần chạy lại script.
-- Bản dịch thủ công (chuẩn nhất) cho ngôn ngữ nào bạn muốn.
-- Tự dịch những chữ còn thiếu bằng Google Translate (bật bằng `AutoTranslate = true`).
-- Tự kiểm tra bản dịch tự động, nếu thấy dịch lỗi (ví dụ còn sót chữ gốc, lẫn chữ nước khác) thì nó dịch lại.
-- Lưu cache và ngôn ngữ đã chọn, lần sau mở script là có sẵn.
-- Có thông báo "Đang dịch... / Dịch xong / Dịch lỗi", kèm icon.
-- Có sẵn dropdown chọn ngôn ngữ, một dòng là xong.
+1. [What it does](#what-it-does)
+2. [What you need](#what-you-need)
+3. [Quick setup (copy, paste, done)](#quick-setup)
+4. [Writing text in the UI](#writing-text-in-the-ui)
+5. [All Localization options](#all-localization-options)
+6. [Functions you can call](#functions-you-can-call)
+7. [Icons for translation notifications](#icons-for-translation-notifications)
+8. [Customizing notification text](#customizing-notification-text)
+9. [Blocking a word from being translated](#blocking-a-word-from-being-translated)
+10. [Where the cache lives](#where-the-cache-lives)
+11. [Full example](#full-example)
+12. [Common errors](#common-errors)
 
-## Cần gì để chạy
+---
 
-- Executor chạy được `loadstring` và `game:HttpGet`.
-- WindUI bản bạn đang dùng (ở đây là bản `WindUI-Mod`), vì module hook vào `CreateWindow`, `Localization`, `SetLanguage`.
-- Muốn **tự dịch** thì executor phải gọi được Google Translate (bằng `request`/`http_request` hoặc `HttpGet`). Nếu không gọi được thì chỉ có những ngôn ngữ bạn tự viết bảng dịch là hoạt động, mấy cái còn lại giữ nguyên tiếng gốc.
-- Muốn có cache thì executor cần có `readfile` / `writefile` (không có cũng chạy, chỉ là không lưu).
+## What it does
 
-## Cài đặt nhanh
+- Switches the whole UI's language on the fly. No need to rerun the script.
+- Manual translations (the most accurate) for whichever languages you want.
+- Auto-translates any missing text with Google Translate (turn it on with `AutoTranslate = true`).
+- Checks its own auto-translations, and if one looks off (like leftover source text or mixed-in words from another language), it redoes it.
+- Caches translations and remembers the language you picked, so it's ready next time you run the script.
+- Shows "Translating... / Done / Failed" notifications, with icons.
+- Comes with a language dropdown. One line and you're done.
 
-Chỗ này quan trọng nhất, nên mình nói kỹ: **phải `Install` ngay sau khi load WindUI, và trước `Localization` với `CreateWindow`.** Nếu để sau thì nó không hook kịp.
+## What you need
+
+- An executor that supports `loadstring` and `game:HttpGet`.
+- The WindUI version you're using (here it's the `WindUI-Mod` build), since the module hooks into `CreateWindow`, `Localization`, and `SetLanguage`.
+- For **auto-translate**, your executor has to be able to reach Google Translate (through `request`/`http_request` or `HttpGet`). If it can't, only the languages you wrote translation tables for will work, and everything else stays in the source language.
+- For caching, your executor needs `readfile` / `writefile`. It still works without them, it just won't save anything.
+
+## Quick setup
+
+This is the most important part, so listen up: **you have to call `Install` right after loading WindUI, and before `Localization` and `CreateWindow`.** If you do it later, the hook won't catch in time.
 
 ```lua
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 
--- 1) Load + cài module (đặt TRƯỚC Localization và CreateWindow)
+-- 1) Load + install the module (put this BEFORE Localization and CreateWindow)
 local Modules = loadstring(game:HttpGet("https://raw.githubusercontent.com/72msreal-pixel/WindUI/refs/heads/main/Modules.luau"))()
 local LangController = Modules:Install(WindUI)
 
--- 2) Khai báo ngôn ngữ
+-- 2) Set up your languages
 WindUI:Localization({
     Enabled = true,
     DefaultLanguage = "en",
@@ -62,7 +62,7 @@ WindUI:Localization({
     },
 })
 
--- hoặc
+-- or
 -- WindUI:Localization({
 --    Enabled = true,
 --    DefaultLanguage = "en",
@@ -72,13 +72,13 @@ WindUI:Localization({
 --    },
 --})
 
--- 3) Tạo window như bình thường (Folder ở đây module sẽ tự lấy)
+-- 3) Create the window like normal (the module grabs Folder from here on its own)
 local Window = WindUI:CreateWindow({
     Title = "loc:Hello",
     Folder = "My Hub",
 })
 
--- hoặc
+-- or
 -- local Window = WindUI:CreateWindow({
 --    Title = "Hello",
 --    Folder = "My Hub",
@@ -86,9 +86,9 @@ local Window = WindUI:CreateWindow({
 
 ```
 
-Về `Folder`: bạn **không cần** truyền `Folder` vào `Install`. Module tự lấy `Folder` từ `CreateWindow`. (Truyền cũng được, nhưng thừa.)
+About `Folder`: you **don't need** to pass `Folder` into `Install`. The module pulls it from `CreateWindow`. (You can pass it if you want, it's just redundant.)
 
-Rồi thêm dropdown chọn ngôn ngữ vào tab nào đó, thường là tab Settings:
+Then add the language dropdown to a tab, usually your Settings tab:
 
 ```lua
 LangController:AddDropdown(TabHandles.Settings, {
@@ -96,23 +96,23 @@ LangController:AddDropdown(TabHandles.Settings, {
     Desc  = "loc:LanguageDesc",
 })
 
--- hoặc
+-- or
 
 -- LangController:AddDropdown(TabHandles.Settings, {
---     Title = "Seclect Language",
---     Desc  = "You Desc :3",
+--     Title = "Select Language",
+--     Desc  = "Your Desc :3",
 -- })
 ```
 
-Xong. Dropdown này có đủ 30 ngôn ngữ, chọn cái nào là UI đổi cái đó.
+That's it. The dropdown has all 30 languages, and whichever one you pick, the UI switches to it.
 
-## Cách viết chữ trong UI
+## Writing text in the UI
 
-Có hai cách, và bạn có thể dùng lẫn nhau.
+There are two ways, and you can mix them.
 
-### Cách 1: dùng key `loc:`
+### Option 1: use `loc:` keys
 
-Bạn viết `"loc:TênKey"` vào chỗ chữ, rồi khai báo key đó trong bảng `Translations`.
+Write `"loc:KeyName"` wherever you'd put text, then define that key in the `Translations` table.
 
 ```lua
 Translations = {
@@ -123,127 +123,127 @@ Translations = {
 Tabs.Features:Tab({ Title = "loc:Main", Desc = "loc:MainDesc" })
 ```
 
-Cái này chuẩn nhất vì bạn kiểm soát được từng chữ.
+This one's the most accurate since you control every single string.
 
-**Lưu ý hay quên:** key nào bạn dùng cũng **phải có trong bảng của ngôn ngữ gốc** (mặc định là `en`). Nếu thiếu, UI sẽ hiện `[TênKey]` (có ngoặc vuông) cho dễ phát hiện.
+**Easy to forget:** every key you use **has to exist in the source language's table** (`en` by default). If it's missing, the UI will show `[KeyName]` (with square brackets) so it's easy to spot.
 
-### Cách 2: viết thẳng tiếng Anh
+### Option 2: just write plain English
 
-Không cần khai báo gì hết, cứ viết chữ tiếng Anh bình thường:
+You don't need to declare anything. Just write regular English text:
 
 ```lua
 Tab:Toggle({ Title = "Auto Farm", Callback = function(v) end })
 ```
 
-Khi chọn ngôn ngữ khác, module sẽ tự dịch "Auto Farm" (cần `AutoTranslate = true`).
+When you pick another language, the module will translate "Auto Farm" automatically (needs `AutoTranslate = true`).
 
-Chỗ này mình hơi muốn nhấn mạnh: chữ viết thẳng **phải là ngôn ngữ gốc** (tiếng Anh nếu bạn để `SourceLanguage = "en"`). Nếu bạn viết tiếng Việt thẳng vào UI thì nó vẫn tưởng đó là tiếng Anh rồi dịch, ra kết quả rất kỳ.
+I really want to stress this one: plain text **has to be in the source language** (English if you set `SourceLanguage = "en"`). If you write Vietnamese straight into the UI, it'll still assume it's English and try to translate it, and you'll get some really weird results.
 
-Còn nếu bạn muốn tiếng Việt là ngôn ngữ gốc thì đặt `SourceLanguage = "vi"` và `DefaultLanguage = "vi"`, rồi viết bảng `vi` làm bảng chính. Cũng được, chỉ cần nhất quán.
+And if you want Vietnamese to be the source language, set `SourceLanguage = "vi"` and `DefaultLanguage = "vi"`, then write the `vi` table as your main one. That works too, just stay consistent.
 
-## Tất cả option của Localization
+## All Localization options
 
-Các option dưới đây truyền vào `WindUI:Localization({ ... })`. Cái nào không ghi thì dùng mặc định.
+You pass these into `WindUI:Localization({ ... })`. Anything you leave out uses the default.
 
-| Option | Mặc định | Giải thích |
+| Option | Default | What it does |
 |---|---|---|
-| `Enabled` | `true` | Bật/tắt cả hệ thống. |
-| `Prefix` | `"loc:"` | Tiền tố để nhận biết key. Đổi được nhưng không được để trống. |
-| `DefaultLanguage` | `"en"` | Ngôn ngữ mở lên lần đầu. |
-| `SourceLanguage` | = `DefaultLanguage` | Ngôn ngữ gốc của chữ bạn viết trong code. |
-| `Language` | không có | Ép dùng một ngôn ngữ cụ thể lúc khởi động (bỏ qua ngôn ngữ đã lưu). |
-| `Translations` | `{}` | Bảng dịch thủ công, dạng `{ en = {...}, vi = {...} }`. |
-| `AutoTranslate` | `false` | `true` thì chữ thiếu sẽ được tự dịch bằng Google. |
-| `NoTranslations` | `{}` | Danh sách chữ không bao giờ dịch (xem [phần dưới](#chặn-một-chữ-không-cho-dịch)). |
-| `TranslateUnkeyed` | `true` | Đặt `false` thì chỉ dịch chữ có `loc:`, chữ viết thẳng sẽ không đụng tới. |
-| `Languages` | 14 mã phổ biến | Danh sách mã ngôn ngữ cho phép tự dịch. Dropdown của `AddDropdown` luôn dùng đủ 30. |
-| `Notifications` | `true` | Hiện thông báo khi dịch. |
-| `Messages` | mặc định | Tự đặt nội dung thông báo ([xem](#tùy-chỉnh-nội-dung-thông-báo)). |
-| `Icons` | mặc định | Icon cho thông báo ([xem](#icon-cho-thông-báo-dịch)). |
-| `Cache` | `true` | Có lưu cache dịch ra file không. |
-| `SaveSelection` | `true` | Có nhớ ngôn ngữ người dùng đã chọn không. |
-| `AutoPruneCache` | `false` | `true` thì tự xóa bản dịch của chữ không còn dùng nữa. |
-| `Verify` | `true` | Tự kiểm tra và sửa bản dịch tự động. |
-| `OnRepair` | không có | Hàm gọi mỗi khi một bản dịch bị sửa lại. |
-| `OnError` | không có | Hàm nhận chuỗi lỗi khi module gặp lỗi. |
-| `Request` | không có | Tự cung cấp hàm HTTP nếu executor của bạn lạ. Nhận `{Url, Method, Timeout}`. |
-| `SyncSwap` | `true` | Khi chọn ngôn ngữ mới, giữ ngôn ngữ cũ đến khi dịch xong rồi đổi một lượt (đỡ bị nhảy chữ lộn xộn). |
-| `SwapTimeout` | `10` | Chờ tối đa bao nhiêu giây trước khi đổi dù chưa dịch xong. |
-| `Concurrency` | `2` | Số yêu cầu dịch chạy song song (tối đa 8). |
-| `BatchSize` | `40` | Số chữ gộp trong mỗi yêu cầu. |
-| `RequestInterval` | `0.3` | Giãn cách giữa các yêu cầu (giây), để khỏi bị Google chặn. |
-| `MaxRetries` | `2` | Số lần thử lại khi lỗi mạng (tối đa 3). |
-| `RetryCooldown` | `60` | Chữ nào dịch lỗi thì chờ bao lâu (giây) mới thử lại. |
+| `Enabled` | `true` | Turns the whole system on/off. |
+| `Prefix` | `"loc:"` | The prefix used to recognize keys. You can change it, but it can't be empty. |
+| `DefaultLanguage` | `"en"` | The language it opens in the first time. |
+| `SourceLanguage` | = `DefaultLanguage` | The language of the text you write in your code. |
+| `Language` | none | Forces a specific language at startup (ignores the saved one). |
+| `Translations` | `{}` | Your manual translation tables, like `{ en = {...}, vi = {...} }`. |
+| `AutoTranslate` | `false` | When `true`, missing text gets auto-translated with Google. |
+| `NoTranslations` | `{}` | A list of words that never get translated (see [below](#blocking-a-word-from-being-translated)). |
+| `TranslateUnkeyed` | `true` | Set to `false` to only translate text with `loc:` and leave plain text alone. |
+| `Languages` | 14 common codes | The list of language codes allowed for auto-translate. The `AddDropdown` dropdown always uses all 30. |
+| `Notifications` | `true` | Shows notifications while translating. |
+| `Messages` | defaults | Set your own notification text ([see here](#customizing-notification-text)). |
+| `Icons` | defaults | Icons for the notifications ([see here](#icons-for-translation-notifications)). |
+| `Cache` | `true` | Whether to save translations to a cache file. |
+| `SaveSelection` | `true` | Whether to remember the language the user picked. |
+| `AutoPruneCache` | `false` | When `true`, automatically deletes translations for text that's no longer used. |
+| `Verify` | `true` | Automatically checks and fixes auto-translations. |
+| `OnRepair` | none | A function that gets called whenever a translation is repaired. |
+| `OnError` | none | A function that receives an error string whenever the module hits an error. |
+| `Request` | none | Provide your own HTTP function if your executor is unusual. Receives `{Url, Method, Timeout}`. |
+| `SyncSwap` | `true` | When you pick a new language, it keeps the old one until translation finishes, then swaps everything at once (so text doesn't jump around). |
+| `SwapTimeout` | `10` | The max number of seconds to wait before swapping even if translation isn't done. |
+| `Concurrency` | `2` | How many translation requests run in parallel (max 8). |
+| `BatchSize` | `40` | How many strings get bundled into each request. |
+| `RequestInterval` | `0.3` | The gap between requests (in seconds), so Google doesn't block you. |
+| `MaxRetries` | `2` | How many times it retries on network errors (max 3). |
+| `RetryCooldown` | `60` | How long (in seconds) to wait before retrying a string that failed to translate. |
 
-Mấy cái cuối (`Concurrency`, `BatchSize`, `RequestInterval`...) thật ra bạn không cần đụng đâu. Mặc định ổn rồi, mình liệt kê cho đủ thôi.
+You really don't need to touch the last few (`Concurrency`, `BatchSize`, `RequestInterval`...). The defaults are fine, I just listed them to be complete.
 
-## Các hàm bạn có thể gọi
+## Functions you can call
 
-`LangController` là cái bạn nhận được từ `Modules:Install(...)`.
+`LangController` is what you get back from `Modules:Install(...)`.
 
 ```lua
-LangController:SetLanguage("vi")      -- đổi ngôn ngữ, trả về true/false, lỗi
-LangController:GetLanguage()          -- lấy mã ngôn ngữ hiện tại, ví dụ "vi"
-LangController:Refresh()              -- áp dụng lại toàn bộ chữ
-LangController:Refresh(true)          -- như trên, nhưng thử lại cả những chữ từng dịch lỗi
-LangController:GetStatus()            -- bảng thông tin: Language, Busy, TrackedObjects, CachePath, LastError...
-LangController:GetCachePath()         -- đường dẫn file cache
-LangController:Destroy()              -- tắt hẳn hệ thống (trả WindUI về như cũ)
+LangController:SetLanguage("vi")      -- switch languages, returns true/false, error
+LangController:GetLanguage()          -- get the current language code, e.g. "vi"
+LangController:Refresh()              -- reapply all text
+LangController:Refresh(true)          -- same as above, but also retries strings that failed before
+LangController:GetStatus()            -- info table: Language, Busy, TrackedObjects, CachePath, LastError...
+LangController:GetCachePath()         -- path to the cache file
+LangController:Destroy()              -- shuts the whole system down (puts WindUI back like it was)
 ```
 
-Nghe khi ngôn ngữ đổi:
+Listen for language changes:
 
 ```lua
 local conn = LangController:OnChanged(function(newLang, oldLang)
-    -- làm gì đó khi đổi ngôn ngữ
+    -- do something when the language changes
 end)
-conn:Disconnect() -- ngừng nghe
+conn:Disconnect() -- stop listening
 ```
 
-Dropdown chọn ngôn ngữ (có `Callback` là tùy chọn):
+The language dropdown (`Callback` is optional):
 
 ```lua
 LangController:AddDropdown(Tab, {
     Title = "loc:Language",
     Desc  = "loc:LanguageDesc",
     Callback = function(code, ok, err)
-        -- code: mã ngôn ngữ vừa chọn, ok: thành công hay không
+        -- code: the language code that was just picked, ok: whether it worked
     end,
 })
 ```
 
-Ngoài ra, sau khi `Install`, bạn cũng gọi được thẳng `WindUI:SetLanguage("vi")` và `WindUI:GetLanguage()`.
+Also, after `Install`, you can call `WindUI:SetLanguage("vi")` and `WindUI:GetLanguage()` directly.
 
-Nếu fork WindUI của bạn không tự lộ GUI ra cho module thấy (module sẽ báo "No exposed GUI root found"), thì gắn tay bằng:
+If your WindUI fork doesn't expose its GUI to the module (the module will say "No exposed GUI root found"), attach it manually with:
 
 ```lua
-LangController:AttachRoot(ScreenGuiCuaBan)
+LangController:AttachRoot(YourScreenGui)
 ```
 
-### Mấy hàm nâng cao (hơi ít dùng)
+### Advanced functions (rarely used)
 
-Nằm trong `LangController.Manager`:
+These live in `LangController.Manager`:
 
 ```lua
 local M = LangController.Manager
-M:SetTranslations("vi", { Hello = "Chào nha" })   -- thêm/sửa bản dịch lúc đang chạy (false = xóa 1 dòng)
-M:ClearCache("vi")                                 -- xóa cache của 1 ngôn ngữ (bỏ tham số = xóa hết)
-M:GetOriginalText(textLabel)                       -- lấy chữ gốc của một TextLabel
-M:SetOriginalText(textLabel, "New text")           -- đổi chữ gốc của một TextLabel
-M:SetTextParts(textLabel, { "Line 1", "Line 2" }, "\n") -- chữ ghép từ nhiều đoạn, dịch từng đoạn
+M:SetTranslations("vi", { Hello = "Chào nha" })   -- add/edit translations at runtime (false = delete a line)
+M:ClearCache("vi")                                 -- clear the cache for one language (leave it out to clear everything)
+M:GetOriginalText(textLabel)                       -- get the original text of a TextLabel
+M:SetOriginalText(textLabel, "New text")           -- change the original text of a TextLabel
+M:SetTextParts(textLabel, { "Line 1", "Line 2" }, "\n") -- text built from multiple parts, each part translated separately
 ```
 
-## Icon cho thông báo dịch
+## Icons for translation notifications
 
-Mỗi khi dịch, module hiện thông báo của WindUI. Có 3 loại và mỗi loại có icon mặc định:
+Whenever it translates, the module shows a WindUI notification. There are 3 types, and each one has a default icon:
 
-| Loại | Lúc nào | Icon mặc định |
+| Type | When | Default icon |
 |---|---|---|
-| `Start` | Bắt đầu dịch | `languages` |
-| `Done` | Dịch xong | `badge-check` |
-| `Fail` | Dịch lỗi | `triangle-alert` |
+| `Start` | Translation starts | `languages` |
+| `Done` | Translation finishes | `badge-check` |
+| `Fail` | Translation fails | `triangle-alert` |
 
-Icon là **tên icon lucide** (WindUI dùng bộ lucide), hoặc `"rbxassetid://..."` nếu bạn muốn icon riêng. Đổi bằng option `Icons`:
+Icons are **Lucide icon names** (WindUI uses the Lucide set), or `"rbxassetid://..."` if you want your own. Change them with the `Icons` option:
 
 ```lua
 WindUI:Localization({
@@ -252,17 +252,17 @@ WindUI:Localization({
         Start = "loader",
         Done  = "check",
         Fail  = "wifi-off",
-        -- Fail = "rbxassetid://123456789",  -- icon riêng cũng được
-        -- Start = false,                     -- false = không hiện icon
+        -- Fail = "rbxassetid://123456789",  -- a custom icon works too
+        -- Start = false,                     -- false = no icon
     },
 })
 ```
 
-Nếu bạn gõ sai tên icon (hoặc icon không có trong bộ), thông báo vẫn hiện bình thường, chỉ là không có icon, chứ không bị lỗi. Nên nếu thấy thiếu icon thì kiểm tra lại tên nha.
+If you mistype an icon name (or the icon isn't in the set), the notification still shows up fine, it just won't have an icon, and nothing errors out. So if an icon's missing, double-check the name.
 
-## Tùy chỉnh nội dung thông báo
+## Customizing notification text
 
-Module có sẵn nội dung thông báo cho `en, vi, zh, ja, ko, th, id, fr, de, es, pt, ru`. Ngôn ngữ nào không có trong danh sách đó thì hiện tiếng Anh. Muốn tự viết thì dùng `Messages`:
+The module comes with built-in notification text for `en, vi, zh, ja, ko, th, id, fr, de, es, pt, ru`. Any language that isn't on that list falls back to English. If you want to write your own, use `Messages`:
 
 ```lua
 Messages = {
@@ -275,23 +275,23 @@ Messages = {
 }
 ```
 
-`%s` sẽ được thay bằng mã ngôn ngữ viết hoa (ví dụ `JA`). Mỗi mục là tùy chọn, mục nào thiếu thì dùng mặc định.
+`%s` gets replaced with the uppercase language code (like `JA`). Every entry is optional, and anything you skip uses the default.
 
-Muốn tắt hẳn thông báo: `Notifications = false`.
+To turn notifications off completely: `Notifications = false`.
 
-## Chặn một chữ không cho dịch
+## Blocking a word from being translated
 
-Có mấy chữ chắc chắn bạn không muốn dịch: tên hub, tên theme, tên người... Có 3 cách:
+There are some words you definitely don't want translated: hub names, theme names, people's names, stuff like that. You've got 3 ways to do it:
 
-**Cách 1:** đưa vào `NoTranslations`:
+**Option 1:** put them in `NoTranslations`:
 
 ```lua
 NoTranslations = { "My Hub", "Dark", "Blue" }
 ```
 
-Chữ này (khi nó nằm trọn trong một dòng, hoặc xuất hiện trong dòng khác) sẽ được giữ nguyên.
+These words stay as-is (whether they're the whole line or show up inside another line).
 
-**Cách 2:** đặt vào trong bảng ngôn ngữ, với một key đặc biệt tên `NoTranslations`:
+**Option 2:** put them inside a language table, under a special key called `NoTranslations`:
 
 ```lua
 en = {
@@ -300,29 +300,29 @@ en = {
 }
 ```
 
-**Cách 3:** với một object cụ thể (TextLabel, TextButton), gắn thuộc tính:
+**Option 3:** for one specific object (a TextLabel or TextButton), set an attribute:
 
 ```lua
 textLabel:SetAttribute("ModulesNoTranslate", true)
 ```
 
-## Cache lưu ở đâu
+## Where the cache lives
 
-File nằm ở:
+The file is at:
 
 ```
-<Folder của bạn>/language/LanguageCache.json
+<your Folder>/language/LanguageCache.json
 ```
 
-Ví dụ `Folder = "My Hub"` thì file là `My Hub/language/LanguageCache.json`. Trong đó có bản dịch tự động đã lưu và ngôn ngữ người dùng chọn lần trước. Lấy đường dẫn bằng `LangController:GetCachePath()`.
+For example, if `Folder = "My Hub"`, the file is `My Hub/language/LanguageCache.json`. It holds the saved auto-translations and the language the user picked last time. You can get the path with `LangController:GetCachePath()`.
 
-Muốn dịch lại từ đầu thì xóa file này, hoặc gọi `LangController.Manager:ClearCache()`.
+To start translating from scratch, delete this file or call `LangController.Manager:ClearCache()`.
 
-Nếu bạn sửa chữ gốc trong code (đổi bảng `en`), module nhận ra và tự bỏ cache cũ, nên không lo bị dính bản dịch cũ.
+If you change the source text in your code (like editing the `en` table), the module notices and throws out the old cache on its own, so you won't get stuck with stale translations.
 
-## Code mẫu đầy đủ
+## Full example
 
-Bản này ngắn gọn hơn script thật, nhưng đủ để thấy mọi thứ nối với nhau thế nào:
+This one's shorter than the real script, but it's enough to show how everything fits together:
 
 ```lua
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
@@ -376,51 +376,51 @@ local Section = Window:Section({ Title = "loc:Main", Opened = true })
 local MainTab = Section:Tab({ Title = "loc:Main", Icon = "house" })
 local SettingsTab = Section:Tab({ Title = "loc:Settings", Icon = "settings" })
 
--- Chữ có key: dịch tay (en / vi), ngôn ngữ khác tự dịch
+-- Keyed text: translated by hand (en / vi), auto-translated for everything else
 MainTab:Toggle({
     Title = "loc:AutoFarm",
     Callback = function(value) end,
 })
 
--- Chữ viết thẳng tiếng Anh: tự dịch hết
+-- Plain English text: fully auto-translated
 MainTab:Button({
     Title = "Teleport to Spawn",
     Callback = function() end,
 })
 
--- Dropdown chọn ngôn ngữ
+-- Language dropdown
 LangController:AddDropdown(SettingsTab, {
     Title = "loc:Language",
     Desc = "loc:LanguageDesc",
 })
 ```
 
-## Lỗi hay gặp
+## Common errors
 
-**UI hiện `[Main]`, `[Settings]` (có ngoặc vuông).**
-Bạn dùng `loc:Main` nhưng chưa khai báo key `Main` trong bảng của ngôn ngữ gốc (`en`). Thêm vào là hết.
+**The UI shows `[Main]`, `[Settings]` (with square brackets).**
+You used `loc:Main`, but you never defined the `Main` key in the source language's table (`en`). Add it and you're good.
 
-**Chọn ngôn ngữ khác nhưng chữ không đổi.**
-Có vài nguyên nhân hay gặp:
-- Chưa bật `AutoTranslate = true` và bạn cũng chưa viết bảng dịch cho ngôn ngữ đó.
-- Executor không gọi được Google Translate. Thử `LangController:GetStatus().LastError` để xem lỗi.
-- Bạn `Install` sau `CreateWindow`. Phải `Install` trước.
+**You pick another language but the text doesn't change.**
+A few common causes:
+- `AutoTranslate = true` isn't on, and you also haven't written a translation table for that language.
+- Your executor can't reach Google Translate. Check `LangController:GetStatus().LastError` to see the error.
+- You called `Install` after `CreateWindow`. It has to come first.
 
-**Thông báo "Dịch lỗi".**
-Thường là mạng hoặc executor chặn request. Module sẽ tự thử lại vài lần. Nếu cứ lỗi mãi, bạn có thể tự đưa hàm HTTP vào qua option `Request`.
+**"Translation failed" notification.**
+Usually it's the network, or your executor is blocking the request. The module retries a few times on its own. If it keeps failing, you can pass in your own HTTP function with the `Request` option.
 
-**Bản dịch tự động nhìn hơi kỳ.**
-Bình thường thôi, Google dịch mà. Chữ nào quan trọng thì tự viết vào bảng `Translations`, bản thủ công luôn được ưu tiên hơn bản tự dịch.
+**Auto-translations look a little off.**
+That's normal, it's Google Translate. For the important stuff, write it into the `Translations` table yourself. Manual translations always win over auto-translations.
 
-**Chữ tiếng Việt viết thẳng bị dịch sai.**
-Xem lại phần [viết thẳng tiếng Anh](#cách-2-viết-thẳng-tiếng-anh). Chữ viết thẳng phải đúng là ngôn ngữ gốc.
+**Plain Vietnamese text is getting translated wrong.**
+Check out the [plain English section](#option-2-just-write-plain-english). Plain text has to actually be in the source language.
 
-**Báo "No exposed GUI root found".**
-Fork WindUI của bạn không lộ GUI ra. Gọi `LangController:AttachRoot(ScreenGui)` với ScreenGui của hub.
+**It says "No exposed GUI root found".**
+Your WindUI fork doesn't expose its GUI. Call `LangController:AttachRoot(ScreenGui)` with your hub's ScreenGui.
 
-**Thấy `warn` từ `[Modules.Language]` trong console.**
-Đó là module tự báo lỗi của nó (mạng, text quá dài, v.v.). Không ảnh hưởng gì nếu UI vẫn chạy bình thường. Nếu muốn nhận lỗi để xử lý riêng thì dùng option `OnError`.
+**You see a `warn` from `[Modules.Language]` in the console.**
+That's the module reporting its own errors (network, text too long, etc.). It's harmless as long as the UI is still working. If you want to catch the errors and handle them yourself, use the `OnError` option.
 
 ---
 
-Nếu có chỗ nào chưa rõ hoặc bạn thấy thiếu mục nào thì cứ nói, mình bổ sung thêm.
+If anything's unclear, or you think a section is missing, just say so and I'll add it.
