@@ -987,7 +987,7 @@ local function newManager(WindUI)
         ru = {Title = "Язык", Start = "Перевод на %s...", Done = "Перевод завершён (%s)", Fail = "Ошибка перевода (%s), повтор позже"},
     }
 
-    local DEFAULT_ICONS = {Start = "languages", Done = "circle-check", Fail = "triangle-alert"}
+    local DEFAULT_ICONS = {Start = "languages", Done = "badge-check", Fail = "triangle-alert"}
 
     function LM:Toast(kind, language)
         if self.Dead or not self.Config.Notifications then return end
