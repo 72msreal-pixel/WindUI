@@ -1,4 +1,4 @@
-local Modules = { Version = "0.1.0" }
+local Modules = { Version = "0.1.1" }
 local Installed = setmetatable({}, { __mode = "k" })
 local httpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
@@ -1611,10 +1611,55 @@ local function safeFolder(folder)
     return folder
 end
 
+function Controller:_hookSections(window)
+    if type(window) ~= "table" then return end
+    self.SectionHooked = self.SectionHooked or setmetatable({}, {__mode = "k"})
+    local hooked = self.SectionHooked
+    local controller = self
+
+    local function watchSection(section)
+        local frame = section.ElementFrame
+        if typeof(frame) ~= "Instance" then return end
+        local outline = frame:FindFirstChild("Outline")
+        local content = outline and outline:FindFirstChild("Content")
+        if not content then return end
+        local connection
+        connection = content:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            if controller.Dead then connection:Disconnect() return end
+            if type(section.Open) ~= "function" then return end
+            if section.Expandable == false or not section.Opened then return end
+            pcall(function() section:Open(true) end)
+        end)
+        content.Destroying:Once(function() connection:Disconnect() end)
+    end
+
+    local function hookContainer(container)
+        if type(container) ~= "table" or hooked[container] then return end
+        hooked[container] = true
+        for _, name in ipairs({"Section", "Tab"}) do
+            local ok, original = pcall(function() return container[name] end)
+            if ok and type(original) == "function" then
+                container[name] = function(...)
+                    local result = table.pack(original(...))
+                    local object = result[1]
+                    if type(object) == "table" then
+                        pcall(hookContainer, object)
+                        if name == "Section" then pcall(watchSection, object) end
+                    end
+                    return table.unpack(result, 1, result.n)
+                end
+            end
+        end
+    end
+
+    pcall(hookContainer, window)
+end
+
 function Controller:BindWindow(window, folder)
     assert(not self.Dead, "Modules controller was destroyed")
     assert(type(window) == "table", "BindWindow expects a WindUI window table")
     self.Window = window
+    self:_hookSections(window)
     self.Folder = safeFolder(folder or window.Folder or self.InstallOptions.Folder)
     local configManager = window.ConfigManager or self.WindUI.ConfigManager
     local path = type(configManager) == "table" and configManager.Path
