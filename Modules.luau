@@ -482,7 +482,7 @@ local function newManager(WindUI)
                 end
             end
         end
-        return self:Code(data.SelectedLanguage)
+        return true
     end
 
     function LM:SaveCache(sliced)
@@ -535,7 +535,6 @@ local function newManager(WindUI)
             local head = httpService:JSONEncode({
                 Version = 2, SourceLanguage = self.Config.SourceLanguage, SourceSignature = self.SourceSignature,
                 NoTranslateKey = self:NoTranslateKey(),
-                SelectedLanguage = self.Config.SaveSelection and self.CurrentLanguage or nil,
             })
             writefile(self.Config.CacheFile, head:sub(1, -2) .. ',"Translations":{' .. table.concat(parts, ",") .. "}}")
         end)
@@ -1270,7 +1269,6 @@ local function newManager(WindUI)
             self:Commit()
             self:Schedule()
         end
-        self:ScheduleSave()
         if previous ~= code then self:Notify(previous) end
         return true
     end
@@ -1366,7 +1364,7 @@ local function newManager(WindUI)
             DefaultLanguage = default, SourceLanguage = source, Translations = translations, NoTranslate = noTranslate,
             Languages = options.Languages or {"en", "vi", "zh-CN", "zh-TW", "ja", "ko", "fr", "de", "es", "th", "id", "pt", "ru", "ar"},
             Cache = options.Cache ~= false, CacheFile = assert(options.CacheFile, "CacheFile must be set by the WindUI adapter"),
-            SaveSelection = options.SaveSelection ~= false, AutoPruneCache = options.AutoPruneCache == true,
+            AutoPruneCache = options.AutoPruneCache == true,
             Debounce = math.max(0.05, tonumber(options.Debounce) or 0.2),
             BatchSize = math.max(1, math.floor(tonumber(options.BatchSize) or 200)),
             MaxURLLength = math.max(512, math.min(16000, tonumber(options.MaxURLLength) or 8000)),
@@ -1390,8 +1388,8 @@ local function newManager(WindUI)
         self.Failed = {}
         self.Active = true
         local previous = self.CurrentLanguage
-        local saved = self:ReadDisk()
-        local selected = self:Code(options.Language) or (self.Config.SaveSelection and saved) or default
+        self:ReadDisk()
+        local selected = self:Code(options.Language) or default
         if not self.Config.Enabled or not self:IsAvailable(selected) then selected = default end
         self.CurrentLanguage = selected
         if self.Config.AutoTranslations and self.Config.SyncSwap
@@ -1647,6 +1645,7 @@ function Controller:AddDropdown(tab, options)
         reverse[label], entry.Labels[language.Code] = language.Code, label
     end
     local callback = options.Callback
+    if options.Flag == nil then options.Flag = "ModulesLanguage" elseif options.Flag == false then options.Flag = nil end
     options.Title = options.Title or "Language / Ngôn ngữ"
     options.Desc = options.Desc or "30 languages • Manual dictionaries + automatic translation"
     options.Values, options.Multi, options.AllowNone = values, false, false
