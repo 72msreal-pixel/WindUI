@@ -12002,27 +12002,53 @@ end
 end)
 
 function ar.ScrollToTheElement(aA,aB)
-ar.UIElements.ContainerFrame.ScrollingEnabled=false
+local Container=ar.UIElements.ContainerFrame
+local Target=ar.Elements[aB]
+if not Target or not Target.ElementFrame then
+return ar
+end
 
-ak.Tween(ar.UIElements.ContainerFrame,0.45,{
+ar.__ScrollLock=true
+Container.ScrollingEnabled=false
+
+local ok=pcall(function()
+ak.Tween(Container,0.45,{
 CanvasPosition=Vector2.new(
 0,
-ar.Elements[aB].ElementFrame.AbsolutePosition.Y
--ar.UIElements.ContainerFrame.AbsolutePosition.Y
--ar.UIElements.ContainerFrame.UIPadding.PaddingTop.Offset
+Target.ElementFrame.AbsolutePosition.Y
+-Container.AbsolutePosition.Y
+-Container.UIPadding.PaddingTop.Offset
 ),
 },Enum.EasingStyle.Quint,Enum.EasingDirection.Out):Play()
+end)
 
 task.spawn(function()
-task.wait(0.48)
-
-if ar.Elements[aB].Highlight then
-ar.Elements[aB]:Highlight()
+task.wait(ok and 0.48 or 0)
+pcall(function()
+if Target.Highlight then
+Target:Highlight()
 end
-ar.UIElements.ContainerFrame.ScrollingEnabled=true
+end)
+ar.__ScrollLock=false
+Container.ScrollingEnabled=true
 end)
 
 return ar
+end
+
+if WindUI and WindUI.OnAllInputReleased then
+table.insert(WindUI.OnAllInputReleased,function()
+local Container=ar.UIElements and ar.UIElements.ContainerFrame
+if not Container or not Container.Parent then
+return false
+end
+if not ar.__ScrollLock then
+Container.ScrollingEnabled=true
+end
+if Window then
+Window.IsToggleDragging=false
+end
+end)
 end
 
 
@@ -15220,11 +15246,46 @@ return ai:GenerateGUID(false)
 end
 
 local ao=aa.GenerateGUID()
+.
+aa.ActivePointers={}
+aa.OnAllInputReleased={}
+
+local function IsPointerAlive(ap)
+if ap.UserInputState==Enum.UserInputState.End or ap.UserInputState==Enum.UserInputState.Cancel then
+return false
+end
+if ap.UserInputType==Enum.UserInputType.MouseButton1 and not an:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+return false
+end
+return true
+end
+
+local function ResetAllInput()
+aa.CurrentInput=nil
+aa.CurrentInputObject=nil
+for i=#aa.OnAllInputReleased,1,-1 do
+local ok,keep=pcall(aa.OnAllInputReleased[i])
+if ok and keep==false then
+table.remove(aa.OnAllInputReleased,i)
+end
+end
+end
+
+local function CheckPointers()
+for obj in next,aa.ActivePointers do
+if not IsPointerAlive(obj) then
+aa.ActivePointers[obj]=nil
+end
+end
+if next(aa.ActivePointers)==nil then
+ResetAllInput()
+end
+end
 
 an.InputBegan:Connect(function(ap,aq)
-
-
-
+if ap.UserInputType==Enum.UserInputType.MouseButton1 or ap.UserInputType==Enum.UserInputType.Touch then
+aa.ActivePointers[ap]=true
+end
 
 task.defer(function()
 if
@@ -15234,20 +15295,14 @@ then
 if aa.CurrentInput and aa.CurrentInput~=ao then
 return
 end
-
 aa.CurrentInput=ao
-
-
 end
 end)
 end)
 an.InputEnded:Connect(function(ap,aq)
 if ap.UserInputType==Enum.UserInputType.MouseButton1 or ap.UserInputType==Enum.UserInputType.Touch then
-if aa.CurrentInput and aa.CurrentInput~=ao then
-return
-end
-
-aa.CurrentInput=nil
+aa.ActivePointers[ap]=nil
+task.defer(CheckPointers)
 end
 end)
 
