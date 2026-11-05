@@ -755,6 +755,30 @@ table.insert(r.Signals,x)
 return x
 end
 
+local function IsInputDead(u)
+if u.UserInputState==Enum.UserInputState.End or u.UserInputState==Enum.UserInputState.Cancel then
+return true
+end
+return u.UserInputType==Enum.UserInputType.MouseButton1 and not e:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+end
+
+function r.AcquireInput(u,v,x)
+local z=u.CurrentInputObject
+if u.CurrentInput and u.CurrentInput~=v and not(z and IsInputDead(z))then
+return false
+end
+u.CurrentInput=v
+u.CurrentInputObject=x
+return true
+end
+
+function r.ReleaseInput(u,v)
+if u.CurrentInput==v then
+u.CurrentInput=nil
+u.CurrentInputObject=nil
+end
+end
+
 function r.DisconnectAll()
 for u,v in next,r.Signals do
 local x=table.remove(r.Signals,u)
@@ -7173,9 +7197,8 @@ local ag=ae.Tween
 
 local ah={}
 
-local ai=false
-
 function ah.New(aj,ak)
+local ai=false
 local al={
 __type="Slider",
 Title=ak.Title or nil,
@@ -7390,6 +7413,37 @@ end
 
 local ay=ak.Tab.UIElements.ContainerFrame
 
+local function FinishDrag()
+if an then
+an:Disconnect()
+an=nil
+end
+if ao then
+ao:Disconnect()
+ao=nil
+end
+ai=false
+ay.ScrollingEnabled=true
+
+ak.WindUI.CurrentInput=nil
+ak.WindUI.CurrentInputObject=nil
+
+if ak.Window.NewElements then
+ag(al.UIElements.SliderIcon.Frame.Thumb,0.2,{
+ImageTransparency=0,
+Size=UDim2.new(
+0,
+ak.Window.NewElements and(al.ThumbSize*2)or(al.ThumbSize+2),
+0,
+ak.Window.NewElements and(al.ThumbSize+4)or(al.ThumbSize+2)
+),
+},Enum.EasingStyle.Quint,Enum.EasingDirection.InOut):Play()
+end
+if ax then
+ax:Close(false)
+end
+end
+
 function al.Set(az,aA,aB)
 if as then
 if
@@ -7430,6 +7484,13 @@ ae.SafeCallback(al.Callback,FormatValue(aA))
 end
 
 an=ad.RenderStepped:Connect(function()
+if
+aB.UserInputState==Enum.UserInputState.End
+or aB.UserInputState==Enum.UserInputState.Cancel
+or(not am and not ac:IsMouseButtonPressed(Enum.UserInputType.MouseButton1))
+then
+return FinishDrag()
+end
 local f=am and aB.Position.X or ac:GetMouseLocation().X
 local g=math.clamp(
 (f-al.UIElements.SliderIcon.AbsolutePosition.X)
@@ -7453,33 +7514,8 @@ end)
 
 
 ao=ac.InputEnded:Connect(function(f)
-if
-(
-f.UserInputType==Enum.UserInputType.MouseButton1
-or f.UserInputType==Enum.UserInputType.Touch
-)and aB==f
-then
-an:Disconnect()
-ao:Disconnect()
-ai=false
-ay.ScrollingEnabled=true
-
-ak.WindUI.CurrentInput=nil
-
-if ak.Window.NewElements then
-ag(al.UIElements.SliderIcon.Frame.Thumb,0.2,{
-ImageTransparency=0,
-Size=UDim2.new(
-0,
-ak.Window.NewElements and(al.ThumbSize*2)or(al.ThumbSize+2),
-0,
-ak.Window.NewElements and(al.ThumbSize+4)or(al.ThumbSize+2)
-),
-},Enum.EasingStyle.Quint,Enum.EasingDirection.InOut):Play()
-end
-if ax then
-ax:Close(false)
-end
+if f==aB or(f.UserInputType==aB.UserInputType and f.UserInputType==Enum.UserInputType.MouseButton1)then
+FinishDrag()
 end
 end)
 else
@@ -7554,12 +7590,15 @@ if
 aA.UserInputType==Enum.UserInputType.MouseButton1
 or aA.UserInputType==Enum.UserInputType.Touch
 then
-if ak.WindUI.CurrentInput and ak.WindUI.CurrentInput~=az then
+if not ae.AcquireInput(ak.WindUI,az,aA)then
 return
 end
-ak.WindUI.CurrentInput=az
 
 al:Set(ap,aA)
+if not ai then
+ae.ReleaseInput(ak.WindUI,az)
+return
+end
 
 
 if ak.Window.NewElements then
@@ -10230,153 +10269,98 @@ end
 
 
 
-local function UpdateSatVib(N,O)
-local P=N.AbsolutePosition.X
-local Q=P+N.AbsoluteSize.X
-local R=N.AbsolutePosition.Y
-local S=R+N.AbsoluteSize.Y
-
-local T=math.clamp(ap.X,P,Q)
-local U=math.clamp(ap.Y,R,S)
-
-O.Sat=(T-P)/(Q-P)
-O.Vib=1-((U-R)/(S-R))
-
-O:Update()
-end
-
-local function UpdateHue(N,O)
-local P=N.AbsolutePosition.Y
-local Q=P+N.AbsoluteSize.Y
-
-local R=math.clamp(ap.Y,P,Q)
-
-O.Hue=(R-P)/(Q-P)
-
-O:Update()
-end
-
-local function UpdateTransparency(N,O)
-local P=N.AbsolutePosition.Y
-local Q=P+N.AbsoluteSize.Y
-
-local R=math.clamp(ap.Y,P,Q)
-
-O.Transparency=1-((R-P)/(Q-P))
-
-O:Update()
-end
-
-local N=ax.GenerateGUID()
-
-table.insert(
-aA,
-ak.InputChanged:Connect(function(O)
-if
-O.UserInputType~=Enum.UserInputType.MouseMovement
-and O.UserInputType~=Enum.UserInputType.Touch
-then
-return
-end
-
-if at=="SatVib"then
-UpdateSatVib(az.UIElements.SatVibMap,az)
-elseif at=="Hue"then
-UpdateHue(x,az)
-elseif at=="Transparency"then
-UpdateTransparency(J,az)
-end
-end)
-)
-
-table.insert(
-aA,
-az.UIElements.SatVibMap.InputBegan:Connect(function(O)
-if
-O.UserInputType~=Enum.UserInputType.MouseButton1
-and O.UserInputType~=Enum.UserInputType.Touch
-then
-return
-end
-
-if ax.CurrentInput and ax.CurrentInput~=N then
-return
-end
-ax.CurrentInput=N
-
-if at and at~="SatVib"then
-return
-end
-
-at="SatVib"
-
-UpdateSatVib(az.UIElements.SatVibMap,az)
-end)
-)
-
-table.insert(
-aA,
-x.InputBegan:Connect(function(O)
-if
-O.UserInputType~=Enum.UserInputType.MouseButton1
-and O.UserInputType~=Enum.UserInputType.Touch
-then
-return
-end
-
-if ax.CurrentInput and ax.CurrentInput~=N then
-return
-end
-ax.CurrentInput=N
-
-if at and at~="Hue"then
-return
-end
-
-at="Hue"
-
-UpdateHue(x,az)
-end)
-)
+local Targets={
+SatVib={
+Frame=az.UIElements.SatVibMap,
+Apply=function(rx,ry)
+az.Sat=rx
+az.Vib=1-ry
+end,
+},
+Hue={
+Frame=x,
+Hit=true,
+Apply=function(rx,ry)
+az.Hue=ry
+end,
+},
+}
 
 if J then
-table.insert(
-aA,
-J.InputBegan:Connect(function(O)
+Targets.Transparency={
+Frame=J,
+Hit=true,
+Apply=function(rx,ry)
+az.Transparency=1-ry
+end,
+}
+end
+
+local DragToken=ax.GenerateGUID()
+local DragConn
+
+local function StopDrag()
+if DragConn then
+DragConn:Disconnect()
+DragConn=nil
+end
+aa.ReleaseInput(ax,DragToken)
+end
+
+local function BeginDrag(Target,Input)
 if
-O.UserInputType~=Enum.UserInputType.MouseButton1
-and O.UserInputType~=Enum.UserInputType.Touch
+Input.UserInputType~=Enum.UserInputType.MouseButton1
+and Input.UserInputType~=Enum.UserInputType.Touch
 then
 return
 end
-
-if ax.CurrentInput and ax.CurrentInput~=N then
-return
-end
-ax.CurrentInput=N
-
-if at and at~="Transparency"then
+if DragConn or not aa.AcquireInput(ax,DragToken,Input)then
 return
 end
 
-at="Transparency"
-
-UpdateTransparency(J,az)
-end)
+DragConn=al.RenderStepped:Connect(function()
+if
+Input.UserInputState==Enum.UserInputState.End
+or Input.UserInputState==Enum.UserInputState.Cancel
+or(
+Input.UserInputType==Enum.UserInputType.MouseButton1
+and not ak:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
 )
+then
+return StopDrag()
 end
 
-table.insert(
-aA,
-ak.InputEnded:Connect(function(O)
-at=nil
+local Pointer=Input.UserInputType==Enum.UserInputType.Touch and Input.Position
+or ak:GetMouseLocation()
+local Pos,Size=Target.Frame.AbsolutePosition,Target.Frame.AbsoluteSize
 
-if ax.CurrentInput and ax.CurrentInput~=N then
-return
-end
-ax.CurrentInput=nil
-end)
+Target.Apply(
+math.clamp((Pointer.X-Pos.X)/Size.X,0,1),
+math.clamp((Pointer.Y-Pos.Y)/Size.Y,0,1)
 )
+az:Update()
+end)
+end
+
+for _,Target in next,Targets do
+local HitFrame=Target.Frame
+if Target.Hit then
+HitFrame=af("Frame",{
+Name="HitBox",
+AnchorPoint=Vector2.new(0.5,0.5),
+Position=UDim2.fromScale(0.5,0.5),
+Size=UDim2.new(0,28,1,16),
+BackgroundTransparency=1,
+ZIndex=100,
+Parent=Target.Frame,
+})
+end
+table.insert(aA,HitFrame.InputBegan:Connect(function(Input)
+BeginDrag(Target,Input)
+end))
+end
+
+table.insert(aA,{Disconnect=StopDrag})
 
 return az
 end
@@ -10704,7 +10688,7 @@ at.Outline.Content.Position=UDim2.new(0,0,0,(at.Outline.Top.AbsoluteSize.Y/am.UI
 if an.Opened then
 an:Open(true)
 else
-an.Close(true)
+an:Close(true)
 end
 end)
 
@@ -10748,69 +10732,49 @@ end
 at:Destroy()
 end
 
+local SizeTween
+
+local function GetContentHeight()
+local Content=at.Outline.Content
+local Padding=Content:FindFirstChildOfClass"UIPadding"
+return Content.UIListLayout.AbsoluteContentSize.Y/am.UIScale
++(Padding and Padding.PaddingTop.Offset+Padding.PaddingBottom.Offset or 0)
+end
+
+local function Resize(Height,Instant,Time)
+if SizeTween then
+SizeTween:Cancel()
+SizeTween=nil
+end
+local NewSize=UDim2.new(at.Size.X.Scale,at.Size.X.Offset,0,Height)
+if Instant then
+at.Size=NewSize
+else
+SizeTween=ai(at,Time,{Size=NewSize},Enum.EasingStyle.Quint,Enum.EasingDirection.Out)
+SizeTween:Play()
+end
+end
+
+local function SetArrow(Rotation,Instant)
+if Instant then
+ap.ImageLabel.Rotation=Rotation
+else
+ai(ap.ImageLabel,0.2,{Rotation=Rotation},Enum.EasingStyle.Quint,Enum.EasingDirection.Out):Play()
+end
+end
+
 function an.Open(av,aw)
 if an.Expandable then
 an.Opened=true
-if aw then
-at.Size=UDim2.new(
-at.Size.X.Scale,
-at.Size.X.Offset,
-0,
-at.Outline.Top.AbsoluteSize.Y/am.UIScale
-+(at.Outline.Content.AbsoluteSize.Y/am.UIScale)
-+10
-)
-ap.ImageLabel.Rotation=180
-else
-ai(at,0.33,{
-Size=UDim2.new(
-at.Size.X.Scale,
-at.Size.X.Offset,
-0,
-at.Outline.Top.AbsoluteSize.Y/am.UIScale
-+(at.Outline.Content.AbsoluteSize.Y/am.UIScale)
-+10
-),
-},Enum.EasingStyle.Quint,Enum.EasingDirection.Out):Play()
-
-ai(
-ap.ImageLabel,
-0.2,
-{Rotation=180},
-Enum.EasingStyle.Quint,
-Enum.EasingDirection.Out
-):Play()
-end
+Resize(at.Outline.Top.AbsoluteSize.Y/am.UIScale+GetContentHeight()+10,aw,0.33)
+SetArrow(180,aw)
 end
 end
 function an.Close(av,aw)
 if an.Expandable then
 an.Opened=false
-if aw then
-at.Size=UDim2.new(
-at.Size.X.Scale,
-at.Size.X.Offset,
-0,
-(at.Outline.Top.AbsoluteSize.Y/am.UIScale)
-)
-ap.ImageLabel.Rotation=0
-else
-ai(at,0.26,{
-Size=UDim2.new(
-at.Size.X.Scale,
-at.Size.X.Offset,
-0,
-(at.Outline.Top.AbsoluteSize.Y/am.UIScale)
-),
-},Enum.EasingStyle.Quint,Enum.EasingDirection.Out):Play()
-ai(
-ap.ImageLabel,
-0.2,
-{Rotation=0},
-Enum.EasingStyle.Quint,
-Enum.EasingDirection.Out
-):Play()
-end
+Resize(at.Outline.Top.AbsoluteSize.Y/am.UIScale,aw,0.26)
+SetArrow(0,aw)
 end
 end
 
@@ -10850,10 +10814,16 @@ at.Outline.Top.AutomaticSize=(not an.Expandable or as)and"Y"or"None"
 at.Outline.Content.Visible=true
 end
 if an.Opened then
-an:Open()
+an:Open(true)
 else
 an:Close(true)
 end
+
+task.delay(0.15,function()
+if an.Expandable and an.Opened then
+an:Open(true)
+end
+end)
 end)
 
 return an.__type,an
