@@ -12002,6 +12002,7 @@ end
 end)
 
 function ar.ScrollToTheElement(aA,aB)
+-- [FIX] never leave ScrollingEnabled=false if something errors
 local Container=ar.UIElements.ContainerFrame
 local Target=ar.Elements[aB]
 if not Target or not Target.ElementFrame then
@@ -12036,6 +12037,7 @@ end)
 return ar
 end
 
+-- [FIX] watchdog: once all fingers/mouse are released, always re-enable tab scrolling
 if WindUI and WindUI.OnAllInputReleased then
 table.insert(WindUI.OnAllInputReleased,function()
 local Container=ar.UIElements and ar.UIElements.ContainerFrame
@@ -15246,11 +15248,13 @@ return ai:GenerateGUID(false)
 end
 
 local ao=aa.GenerateGUID()
-.
+
+-- [FIX] Watchdog: track every active pointer; when ALL are released, force-reset any
+-- stale input lock / disabled scrolling so the UI can never stay stuck.
 aa.ActivePointers={}
 aa.OnAllInputReleased={}
 
-local function IsPointerAlive(ap)
+function aa.IsPointerAlive(ap)
 if ap.UserInputState==Enum.UserInputState.End or ap.UserInputState==Enum.UserInputState.Cancel then
 return false
 end
@@ -15260,7 +15264,7 @@ end
 return true
 end
 
-local function ResetAllInput()
+function aa.ResetAllInput()
 aa.CurrentInput=nil
 aa.CurrentInputObject=nil
 for i=#aa.OnAllInputReleased,1,-1 do
@@ -15271,14 +15275,14 @@ end
 end
 end
 
-local function CheckPointers()
+function aa.CheckPointers()
 for obj in next,aa.ActivePointers do
-if not IsPointerAlive(obj) then
+if not aa.IsPointerAlive(obj) then
 aa.ActivePointers[obj]=nil
 end
 end
 if next(aa.ActivePointers)==nil then
-ResetAllInput()
+aa.ResetAllInput()
 end
 end
 
@@ -15302,7 +15306,7 @@ end)
 an.InputEnded:Connect(function(ap,aq)
 if ap.UserInputType==Enum.UserInputType.MouseButton1 or ap.UserInputType==Enum.UserInputType.Touch then
 aa.ActivePointers[ap]=nil
-task.defer(CheckPointers)
+task.defer(aa.CheckPointers)
 end
 end)
 
