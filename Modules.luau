@@ -1178,9 +1178,8 @@ local function newManager(WindUI)
                 if #batches == 0 then
                     self:ReleaseHold()
                     if self.ToastDone ~= language and not self.Pending and not self.Dead then
-                        local hadStart = self.ToastStart == language
                         self.ToastStart, self.ToastDone, self.ToastFail = language, language, nil
-                        if hadStart then self:Toast("Done", language) end
+                        self:Toast("Done", language)
                     end
                     self:Audit(language, epoch)
                     break
@@ -1258,6 +1257,7 @@ local function newManager(WindUI)
         if not code then return false, "Invalid language code" end
         if not self.Config.Enabled and code ~= self.Config.DefaultLanguage then return false, "Language switching is disabled" end
         if not self:IsAvailable(code) then return false, "No dictionary for this language" end
+        -- Chọn lại đúng ngôn ngữ đang dùng: không làm gì (tránh dịch lại / hiện thông báo lại)
         if code == self.CurrentLanguage then return true end
         local previous = self.CurrentLanguage
         self.Epoch = self.Epoch + 1
@@ -1385,8 +1385,8 @@ local function newManager(WindUI)
             Notifications = options.Notifications ~= false, Messages = options.Messages, Icons = options.Icons,
             SyncSwap = options.SyncSwap ~= false,
             SwapTimeout = math.max(2, tonumber(options.SwapTimeout) or 10),
-            FrameBudget = math.max(0.0005, math.min(0.012, tonumber(options.FrameBudget) or 0.0015)),
-            SyncBudget = math.max(0.001, math.min(0.016, tonumber(options.SyncBudget) or 0.002)),
+            FrameBudget = math.max(0.0005, math.min(0.012, tonumber(options.FrameBudget) or 0.003)),
+            SyncBudget = math.max(0.001, math.min(0.016, tonumber(options.SyncBudget) or 0.006)),
             SaveDelay = math.max(0.5, tonumber(options.SaveDelay) or 2),
         }
         if firstConfigure then self.DisplayLanguage = source end
@@ -1672,6 +1672,7 @@ function Controller:AddDropdown(tab, options)
         if type(value) == "table" then value = value[1] end
         local code = reverse[value]
         if not code then return end
+        -- Chọn lại ngôn ngữ đang dùng: bỏ qua, không gọi lại SetLanguage / callback người dùng
         if code == self:GetLanguage() then return end
         local ok, err = self:SetLanguage(code)
         if not ok then self:_error(err); self.Manager:SyncDropdowns() end
