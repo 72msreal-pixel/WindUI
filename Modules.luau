@@ -1016,7 +1016,6 @@ local function newManager(WindUI)
 
     function LM:Toast(kind, language)
         if self.Dead or not self.Config.Notifications then return end
-        if language == self.Config.SourceLanguage then return end
         local code = language:match("^[a-z]+") or language
         local custom = self.Config.Messages
         local function pick(field)
@@ -1271,7 +1270,7 @@ local function newManager(WindUI)
             self.HoldToken = self.HoldToken + 1
             self.DisplayLanguage = code
             self:Commit()
-            if code ~= self.Config.SourceLanguage then self:Schedule(nil, true) end
+            self:Schedule(nil, true)
         end
         if previous ~= code then self:Notify(previous) end
         return true
@@ -1284,9 +1283,7 @@ local function newManager(WindUI)
         if retryFailed then self.Failed = {}; self.FailCount = 0 end
         self:ApplyAll()
         self:SyncDropdowns()
-        if (translate or retryFailed) and self.CurrentLanguage ~= self.Config.SourceLanguage then
-            self:Schedule(nil, true)
-        end
+        if translate or retryFailed then self:Schedule(nil, true) end
         self:ScheduleSave()
         return true
     end
@@ -1409,7 +1406,7 @@ local function newManager(WindUI)
             self.HoldToken = self.HoldToken + 1
             self.DisplayLanguage = selected
             self:Commit()
-            if selected ~= source then self:Schedule(nil, true) end
+            self:Schedule(nil, true)
         end
         self:Notify(previous)
         self:ScheduleSave()
