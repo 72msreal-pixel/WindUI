@@ -1,4 +1,4 @@
-local Modules = { Version = "0.1.0" }
+local Modules = { Version = "0.2.0" }
 local Installed = setmetatable({}, { __mode = "k" })
 local httpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
@@ -355,7 +355,7 @@ local function newManager(WindUI)
         task.delay(self.Config.SwapTimeout, function()
             if self.HoldToken == token and self.Held then self:ReleaseHold() end
         end)
-        self:Schedule(0)
+        self:Schedule(0, true)
     end
 
     function LM:Untrack(object)
@@ -393,8 +393,10 @@ local function newManager(WindUI)
                 record.Source, record.Key = self:Source(current)
                 record.Parts = nil
                 self:Apply(record)
-                self:Schedule()
-                self:ScheduleSave()
+                if self.Config.LiveTranslate then
+                    self:Schedule()
+                    self:ScheduleSave()
+                end
             end))
             table.insert(record.Connections, object:GetAttributeChangedSignal("ModulesNoTranslate"):Connect(function()
                 self:Apply(record)
@@ -1014,6 +1016,7 @@ local function newManager(WindUI)
 
     function LM:Toast(kind, language)
         if self.Dead or not self.Config.Notifications then return end
+        if language == self.Config.SourceLanguage then return end
         local code = language:match("^[a-z]+") or language
         local custom = self.Config.Messages
         local function pick(field)
@@ -1058,7 +1061,7 @@ local function newManager(WindUI)
         self.RetryScheduled = true
         task.delay(self.Config.RetryCooldown + 1, function()
             self.RetryScheduled = false
-            if not self.Dead then self:Schedule() end
+            if not self.Dead then self:Schedule(nil, true) end
         end)
     end
 
@@ -1195,8 +1198,9 @@ local function newManager(WindUI)
         end
     end
 
-    function LM:Schedule(delay)
+    function LM:Schedule(delay, force)
         if self.Dead or not self.Active or not self.Config.AutoTranslations or self.Scheduled then return end
+        if not force and not self.Config.LiveTranslate then return end
         self.Scheduled = true
         task.delay(delay or self.Config.Debounce, function()
             self.Scheduled = false
@@ -1206,7 +1210,7 @@ local function newManager(WindUI)
             local ok, err = pcall(function() self:Work() end)
             self.Busy = false
             if not ok then self:Error(err) end
-            if self.Pending then self.Pending = false; self:Schedule() else self:ReleaseHold() end
+            if self.Pending then self.Pending = false; self:Schedule(nil, true) else self:ReleaseHold() end
         end)
     end
 
@@ -1267,7 +1271,7 @@ local function newManager(WindUI)
             self.HoldToken = self.HoldToken + 1
             self.DisplayLanguage = code
             self:Commit()
-            self:Schedule()
+            if code ~= self.Config.SourceLanguage then self:Schedule(nil, true) end
         end
         if previous ~= code then self:Notify(previous) end
         return true
@@ -1275,12 +1279,14 @@ local function newManager(WindUI)
 
     function LM:GetLanguage() return self.CurrentLanguage end
 
-    function LM:Refresh(retryFailed)
+    function LM:Refresh(retryFailed, translate)
         if self.Dead then return false end
         if retryFailed then self.Failed = {}; self.FailCount = 0 end
         self:ApplyAll()
         self:SyncDropdowns()
-        self:Schedule()
+        if (translate or retryFailed) and self.CurrentLanguage ~= self.Config.SourceLanguage then
+            self:Schedule(nil, true)
+        end
         self:ScheduleSave()
         return true
     end
@@ -1307,7 +1313,7 @@ local function newManager(WindUI)
             self.Marks[language], self.Bad[language] = nil, nil
         else self.Cache, self.Failed, self.Marks, self.Bad = {}, {}, {}, {} end
         self.Epoch = self.Epoch + 1
-        self:Refresh()
+        self:Refresh(false, true)
     end
 
     function LM:GetOriginalText(object, property)
@@ -1326,8 +1332,10 @@ local function newManager(WindUI)
         record.Source, record.Key = self:Source(source)
         record.Parts = nil
         self:Apply(record)
-        self:Schedule()
-        self:ScheduleSave()
+        if self.Config.LiveTranslate then
+            self:Schedule()
+            self:ScheduleSave()
+        end
     end
 
     function LM:SetTextParts(object, sources, separator)
@@ -1361,6 +1369,7 @@ local function newManager(WindUI)
         local oldFile = self.Config and self.Config.CacheFile
         self.Config = {
             Enabled = options.Enabled ~= false, AutoTranslations = options.AutoTranslations == true,
+            LiveTranslate = options.LiveTranslate == true,
             DefaultLanguage = default, SourceLanguage = source, Translations = translations, NoTranslate = noTranslate,
             Languages = options.Languages or {"en", "vi", "zh-CN", "zh-TW", "ja", "ko", "fr", "de", "es", "th", "id", "pt", "ru", "ar"},
             Cache = options.Cache ~= false, CacheFile = assert(options.CacheFile, "CacheFile must be set by the WindUI adapter"),
@@ -1400,7 +1409,7 @@ local function newManager(WindUI)
             self.HoldToken = self.HoldToken + 1
             self.DisplayLanguage = selected
             self:Commit()
-            self:Schedule()
+            if selected ~= source then self:Schedule(nil, true) end
         end
         self:Notify(previous)
         self:ScheduleSave()
@@ -1630,7 +1639,8 @@ function Controller:GetLanguage() return self.Manager:GetLanguage() end
 function Controller:GetCachePath()
     return self.StorageRoot and (self.StorageRoot .. "/language/LanguageCache.json") or nil
 end
-function Controller:Refresh(retryFailed) return self.Manager:Refresh(retryFailed) end
+function Controller:Refresh(retryFailed) return self.Manager:Refresh(retryFailed, true) end
+function Controller:Translate() return self.Manager:Refresh(false, true) end
 function Controller:OnChanged(callback) return self.Manager:OnChanged(callback) end
 
 function Controller:AddDropdown(tab, options)
@@ -1649,6 +1659,14 @@ function Controller:AddDropdown(tab, options)
     options.Title = options.Title or "Language / Ngôn ngữ"
     options.Desc = options.Desc or "30 languages • Manual dictionaries + automatic translation"
     options.Values, options.Multi, options.AllowNone = values, false, false
+    local wanted = options.Value or options.Default
+    local wantedCode
+    if type(wanted) == "table" then wanted = wanted[1] end
+    if type(wanted) == "string" then
+        wantedCode = reverse[wanted] or self.Manager:Code(wanted)
+        if wantedCode and not entry.Labels[wantedCode] then wantedCode = nil end
+    end
+    options.Default = nil
     options.Value = entry.Labels[self:GetLanguage()] or values[1]
     options.Callback = function(value)
         if entry.Syncing then return end
@@ -1662,6 +1680,10 @@ function Controller:AddDropdown(tab, options)
     local dropdown = tab:Dropdown(options)
     self.Manager.Dropdowns[dropdown] = entry
     entry.Syncing = false
+    if wantedCode and wantedCode ~= self:GetLanguage() then
+        local ok, err = self:SetLanguage(wantedCode)
+        if not ok then self:_error(err) end
+    end
     return dropdown
 end
 
