@@ -94,6 +94,8 @@ Then add the language dropdown to a tab, usually your Settings tab:
 LangController:AddDropdown(TabHandles.Settings, {
     Title = "loc:Language",
     Desc  = "loc:LanguageDesc",
+--  Value = "en",
+--  Flag = "Language",
 })
 
 -- or
@@ -101,6 +103,8 @@ LangController:AddDropdown(TabHandles.Settings, {
 -- LangController:AddDropdown(TabHandles.Settings, {
 --     Title = "Select Language",
 --     Desc  = "Your Desc :3",
+--     Value = "en",
+--     Flag = "Language",
 -- })
 ```
 
