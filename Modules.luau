@@ -998,21 +998,21 @@ local function newManager(WindUI)
     end
 
     local MESSAGES = {
-        en = {Title = "Language", Start = "Translating to %s...", Done = "Translation complete (%s)", Fail = "Translation failed (%s), will retry shortly", Source = "Switched to original language (%s)"},
-        vi = {Title = "Ngôn ngữ", Start = "Đang dịch sang %s...", Done = "Dịch thành công (%s)", Fail = "Dịch thất bại (%s), sẽ thử lại sau", Source = "Đã chuyển về ngôn ngữ gốc (%s)"},
-        zh = {Title = "语言", Start = "正在翻译为 %s...", Done = "翻译成功 (%s)", Fail = "翻译失败 (%s)，稍后重试", Source = "已切换为原始语言 (%s)"},
-        ja = {Title = "言語", Start = "%s に翻訳中...", Done = "翻訳が完了しました (%s)", Fail = "翻訳に失敗しました (%s)。まもなく再試行します", Source = "元の言語に切り替えました (%s)"},
-        ko = {Title = "언어", Start = "%s(으)로 번역 중...", Done = "번역 완료 (%s)", Fail = "번역 실패 (%s), 곧 다시 시도합니다", Source = "원본 언어로 전환되었습니다 (%s)"},
-        th = {Title = "ภาษา", Start = "กำลังแปลเป็น %s...", Done = "แปลสำเร็จ (%s)", Fail = "แปลไม่สำเร็จ (%s) กำลังลองใหม่", Source = "เปลี่ยนเป็นภาษาต้นฉบับแล้ว (%s)"},
-        id = {Title = "Bahasa", Start = "Menerjemahkan ke %s...", Done = "Terjemahan selesai (%s)", Fail = "Terjemahan gagal (%s), akan dicoba lagi", Source = "Beralih ke bahasa asli (%s)"},
-        fr = {Title = "Langue", Start = "Traduction en %s...", Done = "Traduction terminée (%s)", Fail = "Échec de la traduction (%s), nouvel essai bientôt", Source = "Langue d'origine rétablie (%s)"},
-        de = {Title = "Sprache", Start = "Übersetze nach %s...", Done = "Übersetzung abgeschlossen (%s)", Fail = "Übersetzung fehlgeschlagen (%s), neuer Versuch folgt", Source = "Zur Originalsprache gewechselt (%s)"},
-        es = {Title = "Idioma", Start = "Traduciendo a %s...", Done = "Traducción completada (%s)", Fail = "Error de traducción (%s), se reintentará", Source = "Cambiado al idioma original (%s)"},
-        pt = {Title = "Idioma", Start = "Traduzindo para %s...", Done = "Tradução concluída (%s)", Fail = "Falha na tradução (%s), tentando novamente", Source = "Alterado para o idioma original (%s)"},
-        ru = {Title = "Язык", Start = "Перевод на %s...", Done = "Перевод завершён (%s)", Fail = "Ошибка перевода (%s), повтор позже", Source = "Переключено на исходный язык (%s)"},
+        en = {Title = "Language", Start = "Translating to %s...", Done = "Translation complete (%s)", Fail = "Translation failed (%s), will retry shortly"},
+        vi = {Title = "Ngôn ngữ", Start = "Đang dịch sang %s...", Done = "Dịch thành công (%s)", Fail = "Dịch thất bại (%s), sẽ thử lại sau"},
+        zh = {Title = "语言", Start = "正在翻译为 %s...", Done = "翻译成功 (%s)", Fail = "翻译失败 (%s)，稍后重试"},
+        ja = {Title = "言語", Start = "%s に翻訳中...", Done = "翻訳が完了しました (%s)", Fail = "翻訳に失敗しました (%s)。まもなく再試行します"},
+        ko = {Title = "언어", Start = "%s(으)로 번역 중...", Done = "번역 완료 (%s)", Fail = "번역 실패 (%s), 곧 다시 시도합니다"},
+        th = {Title = "ภาษา", Start = "กำลังแปลเป็น %s...", Done = "แปลสำเร็จ (%s)", Fail = "แปลไม่สำเร็จ (%s) กำลังลองใหม่"},
+        id = {Title = "Bahasa", Start = "Menerjemahkan ke %s...", Done = "Terjemahan selesai (%s)", Fail = "Terjemahan gagal (%s), akan dicoba lagi"},
+        fr = {Title = "Langue", Start = "Traduction en %s...", Done = "Traduction terminée (%s)", Fail = "Échec de la traduction (%s), nouvel essai bientôt"},
+        de = {Title = "Sprache", Start = "Übersetze nach %s...", Done = "Übersetzung abgeschlossen (%s)", Fail = "Übersetzung fehlgeschlagen (%s), neuer Versuch folgt"},
+        es = {Title = "Idioma", Start = "Traduciendo a %s...", Done = "Traducción completada (%s)", Fail = "Error de traducción (%s), se reintentará"},
+        pt = {Title = "Idioma", Start = "Traduzindo para %s...", Done = "Tradução concluída (%s)", Fail = "Falha na tradução (%s), tentando novamente"},
+        ru = {Title = "Язык", Start = "Перевод на %s...", Done = "Перевод завершён (%s)", Fail = "Ошибка перевода (%s), повтор позже"},
     }
 
-    local DEFAULT_ICONS = {Start = "languages", Done = "badge-check", Source = "badge-check", Fail = "triangle-alert"}
+    local DEFAULT_ICONS = {Start = "languages", Done = "badge-check", Fail = "triangle-alert"}
 
     function LM:Toast(kind, language)
         if self.Dead or not self.Config.Notifications then return end
@@ -1257,6 +1257,8 @@ local function newManager(WindUI)
         if not code then return false, "Invalid language code" end
         if not self.Config.Enabled and code ~= self.Config.DefaultLanguage then return false, "Language switching is disabled" end
         if not self:IsAvailable(code) then return false, "No dictionary for this language" end
+        -- Chọn lại đúng ngôn ngữ đang dùng: không làm gì (tránh dịch lại / hiện thông báo lại)
+        if code == self.CurrentLanguage then return true end
         local previous = self.CurrentLanguage
         self.Epoch = self.Epoch + 1
         self.CurrentLanguage = code
@@ -1270,12 +1272,7 @@ local function newManager(WindUI)
             self.HoldToken = self.HoldToken + 1
             self.DisplayLanguage = code
             self:Commit()
-            if code ~= self.Config.SourceLanguage then
-                self:Schedule(nil, true)
-            else
-                self.ToastStart, self.ToastDone, self.ToastFail = code, code, nil
-                self:Toast("Source", code)
-            end
+            self:Schedule(nil, true)
         end
         if previous ~= code then self:Notify(previous) end
         return true
@@ -1288,9 +1285,7 @@ local function newManager(WindUI)
         if retryFailed then self.Failed = {}; self.FailCount = 0 end
         self:ApplyAll()
         self:SyncDropdowns()
-        if (translate or retryFailed) and self.CurrentLanguage ~= self.Config.SourceLanguage then
-            self:Schedule(nil, true)
-        end
+        if translate or retryFailed then self:Schedule(nil, true) end
         self:ScheduleSave()
         return true
     end
@@ -1413,7 +1408,7 @@ local function newManager(WindUI)
             self.HoldToken = self.HoldToken + 1
             self.DisplayLanguage = selected
             self:Commit()
-            if selected ~= source then self:Schedule(nil, true) end
+            self:Schedule(nil, true)
         end
         self:Notify(previous)
         self:ScheduleSave()
@@ -1677,6 +1672,8 @@ function Controller:AddDropdown(tab, options)
         if type(value) == "table" then value = value[1] end
         local code = reverse[value]
         if not code then return end
+        -- Chọn lại ngôn ngữ đang dùng: bỏ qua, không gọi lại SetLanguage / callback người dùng
+        if code == self:GetLanguage() then return end
         local ok, err = self:SetLanguage(code)
         if not ok then self:_error(err); self.Manager:SyncDropdowns() end
         if callback then callback(code, ok, err) end
