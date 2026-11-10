@@ -7,7 +7,7 @@ print([[
   \__/\  / |__|___|  /\____ ||______/ |___|  |____|   |____/____//____  >
        \/          \/      \/                                         \/ 
                                                           
-             WindUI Plus - Version 0.0.4
+             WindUI Plus - Version 0.0.6
 ]])
 
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
@@ -2081,7 +2081,7 @@ New=a.i().New
 return[[
 {
     "name": "windui-plus",
-    "version": "v0.0.3",
+    "version": "v0.0.6",
     "main": "./dist/main.lua",
     "repository": "https://github.com/",
     "discord": "http://discord.gg/AxosHub",
@@ -6851,6 +6851,7 @@ Title=ae.Title or"Button",
 Desc=ae.Desc or nil,
 Icon=ae.Icon or"mouse-pointer-click",
 IconThemed=ae.IconThemed or false,
+IconColor=ae.IconColor or nil,
 Color=ae.Color,
 Justify=ae.Justify or"Between",
 IconAlign=ae.IconAlign or"Right",
@@ -6880,6 +6881,7 @@ Tab=ae.Tab,
 Index=ae.Index,
 ElementTable=af,
 ParentConfig=ae,
+Tags=ae.Tags,
 Size=ae.Size,
 }
 
@@ -6902,7 +6904,7 @@ af.Icon,
 0,
 ae.Window.Folder,
 "Button",
-not af.Color and true or nil,
+not(af.Color or af.IconColor)and true or nil,
 af.IconThemed
 )
 
@@ -6913,6 +6915,10 @@ af.UIElements.ButtonIcon.AnchorPoint=Vector2.new(1,0.5)
 af.UIElements.ButtonIcon.Position=UDim2.new(1,0,0.5,0)
 
 af.ButtonFrame:Colorize(af.UIElements.ButtonIcon.ImageLabel,"ImageColor3")
+
+if af.IconColor then
+af.UIElements.ButtonIcon.ImageLabel.ImageColor3=af.IconColor
+end
 
 function af.Lock(ah)
 af.Locked=true
@@ -6997,6 +7003,7 @@ Tab=ah.Tab,
 Index=ah.Index,
 ElementTable=ai,
 ParentConfig=ah,
+Tags=ah.Tags,
 Size=ah.Size,
 }
 
@@ -7587,6 +7594,7 @@ Tab=af.Tab,
 Index=af.Index,
 ElementTable=ag,
 ParentConfig=af,
+Tags=af.Tags,
 }
 
 local ah=true
@@ -7722,6 +7730,7 @@ Tab=aj.Tab,
 Index=aj.Index,
 ElementTable=ak,
 ParentConfig=aj,
+Tags=aj.Tags,
 }
 
 local ao=ak.Value
@@ -8014,6 +8023,7 @@ Index=aj.Index,
 Window=aj.Window,
 ElementTable=ak,
 ParentConfig=aj,
+Tags=aj.Tags,
 }
 
 
@@ -8364,6 +8374,7 @@ Index=ai.Index,
 Window=ai.Window,
 ElementTable=ao,
 ParentConfig=ai,
+Tags=ai.Tags,
 }
 
 local av=ae("Frame",{
@@ -8758,10 +8769,16 @@ Locked=ai.Locked or false,
 LockedTitle=ai.LockedTitle,
 Value=NormalizeKeyCode(ai.Value)or"F",
 Callback=ai.Callback or function()end,
-CanChange=ai.CanChange or true,
+CanChange=ai.CanChange~=false,
+Blacklist=ai.Blacklist or{},
 Picking=false,
 UIElements={},
 }
+
+local BlacklistSet={}
+for _,BlacklistKey in next,aj.Blacklist do
+BlacklistSet[NormalizeKeyCode(BlacklistKey)]=true
+end
 
 local ak=true
 
@@ -8776,6 +8793,7 @@ Index=ai.Index,
 Window=ai.Window,
 ElementTable=aj,
 ParentConfig=ai,
+Tags=ai.Tags,
 }
 
 aj.UIElements.Keybind=ag(aj.Value,nil,aj.KeybindFrame.UIElements.Main,nil,10)
@@ -8844,6 +8862,10 @@ elseif am.UserInputType==Enum.UserInputType.MouseButton2 then
 an="MouseRight"
 end
 
+if not an or BlacklistSet[an]then
+return
+end
+
 local ao
 ao=ab.InputEnded:Connect(function(ap)
 if ap.KeyCode.Name==an or an=="MouseLeft"and ap.UserInputType==Enum.UserInputType.MouseButton1 or an=="MouseRight"and ap.UserInputType==Enum.UserInputType.MouseButton2 then
@@ -8867,6 +8889,10 @@ return
 end
 
 if not ak then
+return
+end
+
+if aj.Picking then
 return
 end
 
@@ -8930,6 +8956,7 @@ Index=ah.Index,
 Window=ah.Window,
 ElementTable=ai,
 ParentConfig=ah,
+Tags=ah.Tags,
 }
 
 local ak=af(
@@ -9899,6 +9926,7 @@ Index=ao.Index,
 Window=ao.Window,
 ElementTable=ap,
 ParentConfig=ao,
+Tags=ao.Tags,
 }
 
 
@@ -10222,6 +10250,7 @@ Index=ai.Index,
 Window=ai.Window,
 ElementTable=ak,
 ParentConfig=ai,
+Tags=ai.Tags,
 }
 
 local as=ad("Frame",{
@@ -10818,7 +10847,7 @@ return ae.local_property
 end
 end
 
-function aa.run(ak)
+local function runInner(ak)
 local al={}
 local am=""
 
@@ -10897,6 +10926,34 @@ end
 return table.concat(aq)
 end
 
+function aa.run(ak,theme)
+if typeof(theme)~="table"then
+return runInner(ak)
+end
+
+local saved={}
+for k,v in next,theme do
+local c=v
+if typeof(c)=="string"then
+local ok,r=pcall(Color3.fromHex,c)
+c=ok and r or nil
+end
+if typeof(c)=="Color3"then
+saved[k]={ae[k]}
+ae[k]=c
+end
+end
+
+local ok,res=pcall(runInner,ak)
+for k,v in next,saved do
+ae[k]=v[1]
+end
+if not ok then
+error(res,0)
+end
+return res
+end
+
 return aa end function a.V():typeof(__modImpl())local aa=a.cache.V if not aa then aa={c=__modImpl()}a.cache.V=aa end return aa.c end end do local function __modImpl()
 local aa={}
 
@@ -10906,7 +10963,15 @@ local af=ad.Tween
 
 local ag=a.V()
 
-function aa.New(ai,ak,al,am,an)
+function aa.New(ai,ak,al,am,an,CodeOpts)
+CodeOpts=CodeOpts or{}
+local CodeHeight=CodeOpts.Height
+if typeof(CodeHeight)=="number"then
+CodeHeight=UDim.new(0,CodeHeight)
+end
+if typeof(CodeHeight)~="UDim"then
+CodeHeight=nil
+end
 local ao={
 Radius=12,
 Padding=10
@@ -10916,7 +10981,7 @@ local ap=ae("TextLabel",{
 Text="",
 TextColor3=Color3.fromHex"#CDD6F4",
 TextTransparency=0,
-TextSize=14,
+TextSize=tonumber(CodeOpts.CodeSize)or 14,
 TextWrapped=false,
 LineHeight=1.15,
 RichText=true,
@@ -10937,8 +11002,8 @@ ap.Font="Code"
 local aq=ae("ScrollingFrame",{
 Size=UDim2.new(1,0,0,0),
 BackgroundTransparency=1,
-AutomaticCanvasSize="X",
-ScrollingDirection="X",
+AutomaticCanvasSize=CodeHeight and"XY"or"X",
+ScrollingDirection=CodeHeight and"XY"or"X",
 ElasticBehavior="Never",
 CanvasSize=UDim2.new(0,0,0,0),
 ScrollBarThickness=0,
@@ -10951,7 +11016,7 @@ BackgroundTransparency=1,
 Size=UDim2.new(0,30,0,30),
 Position=UDim2.new(1,-ao.Padding/2,0,ao.Padding/2),
 AnchorPoint=Vector2.new(1,0),
-Visible=am and true or false,
+Visible=(am and CodeOpts.CanCopied~=false)and true or false,
 },{
 ad.NewRoundFrame(ao.Radius-4,"Squircle",{
 
@@ -10999,8 +11064,8 @@ local as=ad.NewRoundFrame(ao.Radius,"Squircle",{
 
 ImageColor3=Color3.fromHex"#212121",
 ImageTransparency=.035,
-Size=UDim2.new(1,0,0,20+(ao.Padding*2)),
-AutomaticSize="Y",
+Size=CodeHeight and UDim2.new(1,0,CodeHeight.Scale,CodeHeight.Offset==0 and-40 or CodeHeight.Offset)or UDim2.new(1,0,0,20+(ao.Padding*2)),
+AutomaticSize=CodeHeight and"None"or"Y",
 Parent=al,
 },{
 ad.NewRoundFrame(ao.Radius,"SquircleOutline",{
@@ -11013,8 +11078,8 @@ ImageTransparency=.955,
 }),
 ae("Frame",{
 BackgroundTransparency=1,
-Size=UDim2.new(1,0,0,0),
-AutomaticSize="Y",
+Size=UDim2.new(1,0,CodeHeight and 1 or 0,0),
+AutomaticSize=CodeHeight and"None"or"Y",
 },{
 ad.NewRoundFrame(ao.Radius,"Squircle-TL-TR",{
 
@@ -11074,11 +11139,15 @@ ar,
 ao.CodeFrame=as
 
 ad.AddSignal(ap:GetPropertyChangedSignal"TextBounds",function()
+if CodeHeight then
+aq.Size=UDim2.new(1,0,1,ak and-(20+(ao.Padding*2))or 0)
+else
 aq.Size=UDim2.new(1,0,0,(ap.TextBounds.Y/(an or 1))+((ao.Padding+3)*2))
+end
 end)
 
 function ao.Set(at)
-ap.Text=ag.run(at)
+ap.Text=ag.run(at,CodeOpts.CodeTheme)
 end
 
 function ao.Destroy()
@@ -11121,6 +11190,10 @@ local ak={
 __type="Code",
 Title=ai.Title,
 Code=ai.Code,
+CodeSize=ai.CodeSize,
+Height=ai.Height,
+CodeTheme=ai.CodeTheme,
+CanCopied=ai.CanCopied~=false,
 OnCopy=ai.OnCopy,
 }
 
@@ -11846,6 +11919,7 @@ Index=as.Index,
 Window=as.Window,
 ElementTable=at,
 ParentConfig=as,
+Tags=as.Tags,
 }
 
 at.UIElements.Colorpicker=aa.NewRoundFrame(aq.UICorner,"Squircle",{
@@ -11996,6 +12070,7 @@ Index=ai.Index,
 Window=ai.Window,
 ElementTable=ao,
 ParentConfig=ai,
+Tags=ai.Tags,
 }
 
 local aq=ad("TextLabel",{
@@ -12362,6 +12437,7 @@ Index=ag.Index,
 Window=ag.Window,
 ElementTable=am,
 ParentConfig=ag,
+Tags=ag.Tags,
 }
 
 local ap=ad("Frame",{
@@ -13096,6 +13172,7 @@ __type="Section",
 Title=ai.Title or"Section",
 Desc=ai.Desc,
 Icon=ai.Icon,
+IconThemed=ai.IconThemed,
 TextXAlignment=ai.TextXAlignment or"Left",
 TextSize=ai.TextSize or 19,
 DescTextSize=ai.DescTextSize or 16,
@@ -13437,7 +13514,7 @@ ax..":"..ak.Title,
 ai.Window.Folder,
 ak.__type,
 true,
-true,
+ak.IconThemed~=false,
 "SectionIcon"
 )
 al.Size=UDim2.new(0,ak.IconSize,0,ak.IconSize)
@@ -15058,6 +15135,648 @@ end
 
 return ae end function a.ai():typeof(__modImpl())local aa=a.cache.ai if not aa then aa={c=__modImpl()}a.cache.ai=aa end return aa.c end end do local function __modImpl()
 
+local aa=a.c()
+local ad=aa.New
+
+local ae={}
+
+local function ResolveGap(af)
+return af.Tab
+and af.Tab.Gap
+or(af.Window.ModernLayout and(af.Window.ModernLayoutMergeElements==false and 4 or 1)or 6)
+end
+
+function ae.New(af,ag)
+local ai={
+__type="HStack",
+AutoSpace=ag.AutoSpace or false,
+Elements={},
+ElementFrame=nil,
+}
+
+local ak=ad("Frame",{
+Size=UDim2.new(1,0,0,0),
+BackgroundTransparency=1,
+AutomaticSize="Y",
+Parent=ag.Parent,
+},{
+ad("UIListLayout",{
+FillDirection="Horizontal",
+HorizontalAlignment="Center",
+Padding=UDim.new(0,ResolveGap(ag)),
+}),
+})
+ai.ElementFrame=ak
+
+local al=ag.ElementsModule
+al.Load(
+ai,
+ak,
+al.Elements,
+ag.Window,
+ag.WindUI,
+function(am,an)
+local ao=ResolveGap(ag)
+local ap={}
+local aq=0
+
+for ar,as in next,an do
+if as.__type=="Space"then
+aq=aq+(as.ElementFrame and as.ElementFrame.Size.X.Offset or 6)
+elseif as.__type=="Divider"then
+aq=aq+(as.ElementFrame and as.ElementFrame.Size.X.Offset or 1)
+else
+table.insert(ap,as)
+end
+end
+
+local ar=#ap
+if ar==0 then return end
+
+local as=1/ar
+local at=ao*(ar-1)
+local au=-(at+aq)
+local av=math.floor(au/ar)
+local aw=au-(av*ar)
+
+for ax,ay in next,ap do
+local az=av
+if ax<=math.abs(aw)then
+az=az-1
+end
+
+if ay.ElementFrame then
+ay.ElementFrame.Size=UDim2.new(as,az,1,0)
+end
+end
+end,
+al,
+ag.UIScale,
+ag.Tab
+)
+
+if ai.AutoSpace then
+for am in next,al.Elements do
+if am~="Space"and am~="Divider"then
+local an=ai[am]
+if an then
+ai[am]=function(ao,ap)
+if#ai.Elements>0 then
+ai:Space()
+end
+return an(ao,ap)
+end
+end
+end
+end
+end
+
+function ai.Destroy(am)
+ak:Destroy()
+end
+
+return ai.__type,ai
+end
+
+return ae end function a.ap():typeof(__modImpl())local aa=a.cache.ap if not aa then aa={c=__modImpl()}a.cache.ap=aa end return aa.c end end do local function __modImpl()
+
+local aa=a.c()
+local ad=aa.New
+
+local ae={}
+
+function ae.New(af,ag)
+local ai={
+__type="VStack",
+Elements={},
+ElementFrame=nil,
+}
+
+local ak=ag.Tab
+and ag.Tab.Gap
+or(ag.Window.ModernLayout and(ag.Window.ModernLayoutMergeElements==false and 4 or 1)or 6)
+
+local al=ad("Frame",{
+Size=UDim2.new(1,0,0,0),
+BackgroundTransparency=1,
+AutomaticSize="Y",
+Parent=ag.Parent,
+},{
+ad("UIListLayout",{
+FillDirection="Vertical",
+HorizontalAlignment="Center",
+Padding=UDim.new(0,ak),
+}),
+})
+ai.ElementFrame=al
+
+local am=ag.ElementsModule
+am.Load(
+ai,
+al,
+am.Elements,
+ag.Window,
+ag.WindUI,
+nil,
+am,
+ag.UIScale,
+ag.Tab
+)
+
+function ai.Destroy(an)
+al:Destroy()
+end
+
+return ai.__type,ai
+end
+
+return ae end function a.aq():typeof(__modImpl())local aa=a.cache.aq if not aa then aa={c=__modImpl()}a.cache.aq=aa end return aa.c end end do local function __modImpl()
+
+local aa=(cloneref or clonereference or function(aa)return aa end)
+local ad=aa(game:GetService"UserInputService")
+local ae=aa(game:GetService"HttpService")
+
+local af=a.c()
+local ag=af.New
+
+local ai={}
+
+function ai.New(ak,al)
+local am={
+__type="Viewport",
+Object=al.Object,
+Camera=al.Camera or Instance.new"Camera",
+Interactive=al.Interactive or false,
+Height=al.Height or 200,
+Focused=al.Focused~=false,
+}
+
+local an=false
+local ao=false
+local ap=0
+local aq
+
+local ar=af.NewRoundFrame(al.Window.ElementConfig.UICorner,"Squircle",{
+Size=UDim2.new(1,0,0,am.Height),
+Parent=al.Parent,
+ImageTransparency=0.93,
+ThemeTag={
+ImageColor3="ElementBackground",
+},
+},{
+ag("CanvasGroup",{
+Size=UDim2.new(1,0,1,0),
+BackgroundTransparency=1,
+},{
+ag("UICorner",{
+CornerRadius=UDim.new(0,al.Window.ElementConfig.UICorner),
+}),
+ag("ViewportFrame",{
+Name="Viewport",
+Size=UDim2.new(1,0,1,0),
+BackgroundTransparency=1,
+CurrentCamera=am.Camera,
+Active=am.Interactive,
+},{
+am.Object,
+}),
+}),
+})
+
+local as=ar.CanvasGroup.Viewport
+am.ElementFrame=ar
+
+local function GetScrollFrame()
+return al.Tab and al.Tab.UIElements and al.Tab.UIElements.ContainerFrame
+end
+
+local function IsTouchInsideViewport(at)
+local au=as.AbsolutePosition
+local av=as.AbsoluteSize
+return at.X>=au.X
+and at.X<=au.X+av.X
+and at.Y>=au.Y
+and at.Y<=au.Y+av.Y
+end
+
+local at=ae:GenerateGUID(false)
+
+af.AddSignal(as.MouseEnter,function()
+if am.Interactive then
+local au=GetScrollFrame()
+if au then au.ScrollingEnabled=false end
+end
+end)
+
+af.AddSignal(as.InputEnded,function(au)
+if au.UserInputType==Enum.UserInputType.MouseMovement
+or au.UserInputType==Enum.UserInputType.Touch then
+local av=GetScrollFrame()
+if av then av.ScrollingEnabled=true end
+end
+end)
+
+af.AddSignal(as.InputBegan,function(au)
+if am.Interactive then
+if(au.UserInputType==Enum.UserInputType.MouseButton1)
+or(au.UserInputType==Enum.UserInputType.Touch and not ao)then
+if al.WindUI and al.WindUI.CurrentInput and al.WindUI.CurrentInput~=at then
+return
+end
+if al.WindUI then al.WindUI.CurrentInput=at end
+an=true
+aq=au.Position
+end
+end
+end)
+
+af.AddSignal(ad.InputEnded,function(au)
+if am.Interactive then
+if au.UserInputType==Enum.UserInputType.MouseButton1
+or au.UserInputType==Enum.UserInputType.Touch then
+if al.WindUI and al.WindUI.CurrentInput and al.WindUI.CurrentInput~=at then
+return
+end
+if al.WindUI then al.WindUI.CurrentInput=nil end
+an=false
+end
+end
+end)
+
+af.AddSignal(ad.InputChanged,function(au)
+if am.Interactive and an and not ao and am.Object and aq then
+if au.UserInputType==Enum.UserInputType.MouseMovement
+or au.UserInputType==Enum.UserInputType.Touch then
+local av=au.Position-aq
+aq=au.Position
+
+local aw=am.Object:GetPivot().Position
+local ax=am.Camera
+
+local ay=CFrame.fromAxisAngle(Vector3.new(0,1,0),-av.X*0.02)
+ax.CFrame=CFrame.new(aw)*ay*CFrame.new(-aw)*ax.CFrame
+
+local az=CFrame.fromAxisAngle(ax.CFrame.RightVector,-av.Y*0.02)
+local aA=CFrame.new(aw)*az*CFrame.new(-aw)*ax.CFrame
+if aA.UpVector.Y>0.1 then
+ax.CFrame=aA
+end
+end
+end
+end)
+
+af.AddSignal(as.InputChanged,function(au)
+if am.Interactive then
+if au.UserInputType==Enum.UserInputType.MouseWheel then
+local av=au.Position.Z*2
+am.Camera.CFrame+=am.Camera.CFrame.LookVector*av
+end
+end
+end)
+
+af.AddSignal(ad.TouchPinch,function(au,av,aw,ax)
+if not IsTouchInsideViewport(au[1])or not IsTouchInsideViewport(au[2])then
+return
+end
+
+if am.Interactive then
+if ax==Enum.UserInputState.Begin then
+ao=true
+an=false
+ap=(au[1]-au[2]).Magnitude
+elseif ax==Enum.UserInputState.Change then
+if ao then
+local ay=(au[1]-au[2]).Magnitude
+local az=(ay-ap)*0.03
+ap=ay
+am.Camera.CFrame+=am.Camera.CFrame.LookVector*az
+end
+elseif ax==Enum.UserInputState.End or ax==Enum.UserInputState.Cancel then
+ao=false
+end
+end
+end)
+
+local function FocusCamera()
+if not am.Object then return end
+local au=am.Object:IsA"BasePart"and am.Object.Size
+or select(2,am.Object:GetBoundingBox(0))
+local av=math.max(au.X,au.Y,au.Z)
+local aw=av*2
+local ax=am.Object:GetPivot().Position
+am.Camera.CFrame=CFrame.new(ax+Vector3.new(0,av/2,aw),ax)
+end
+
+if am.Focused then
+FocusCamera()
+end
+
+function am.SetObject(au,av,aw)
+if aw then
+av=av:Clone()
+end
+if am.Object then
+am.Object:Destroy()
+end
+am.Object=av
+am.Object.Parent=as
+end
+
+function am.SetHeight(au,av)
+am.Height=av
+ar.Size=UDim2.new(1,0,0,av)
+end
+
+function am.Focus(au)
+FocusCamera()
+end
+
+function am.SetCamera(au,av)
+am.Camera=av
+as.CurrentCamera=av
+end
+
+function am.SetInteractive(au,av)
+am.Interactive=av
+as.Active=av
+end
+
+function am.Destroy(au)
+ar:Destroy()
+end
+
+am.Main=ar
+
+return am.__type,am
+end
+
+return ai end function a.ar():typeof(__modImpl())local aa=a.cache.ar if not aa then aa={c=__modImpl()}a.cache.ar=aa end return aa.c end end do local function __modImpl()
+
+local aa=a.c()
+local ad=aa.New
+local ae=aa.Tween
+
+local af={}
+
+local function ToFiniteNumber(ag)
+local ai=tonumber(ag)
+if ai==nil or ai~=ai or math.abs(ai)==math.huge then
+return nil
+end
+return ai
+end
+
+local function FormatNumber(ag)
+if ag%1==0 then
+return tostring(ag)
+end
+return tostring(tonumber(string.format("%.2f",ag)))
+end
+
+function af.New(ag,ai)
+local ak=typeof(ai.Value)=="table"and ai.Value or{}
+local al=ToFiniteNumber(ak.Min)or ToFiniteNumber(ai.Min)or 0
+local am=ToFiniteNumber(ak.Max)or ToFiniteNumber(ai.Max)or 100
+if al>am then
+al,am=am,al
+end
+
+local an=typeof(ai.Value)=="number"and ai.Value
+or ToFiniteNumber(ak.Default)
+or ToFiniteNumber(ai.Default)
+or al
+an=ToFiniteNumber(an)or al
+
+local ao=ai.Indeterminate==true
+local ap=ai.ShowValue
+if ap==nil then
+ap=not ao
+end
+local aq=math.max(ToFiniteNumber(ai.ValueWidth)or 44,0)
+
+local ar={
+__type="ProgressBar",
+Title=ai.Title or"Progress",
+Desc=ai.Desc or nil,
+Value={
+Min=al,
+Max=am,
+Default=math.clamp(an,al,am),
+},
+ShowValue=ap,
+DisplayMode=ai.DisplayMode or"Percent",
+Format=ai.Format,
+Animate=ai.Animate~=false,
+AnimationDuration=math.max(ToFiniteNumber(ai.AnimationDuration)or 0.15,0),
+Indeterminate=ao,
+IndeterminateText=ai.IndeterminateText or"",
+Speed=math.max(ToFiniteNumber(ai.Speed)or 1,0.01),
+ControlGap=math.max(ToFiniteNumber(ai.ControlGap)or 16,0),
+UIElements={},
+Width=math.max(ToFiniteNumber(ai.Width)or 160,0),
+ValueWidth=aq,
+}
+
+local function GetRatio(as)
+if ar.Value.Max==ar.Value.Min then
+return as>=ar.Value.Max and 1 or 0
+end
+return math.clamp((as-ar.Value.Min)/(ar.Value.Max-ar.Value.Min),0,1)
+end
+
+local function GetValueText(as,at)
+if ar.Indeterminate then
+return tostring(ar.IndeterminateText)
+end
+
+local au=at*100
+if typeof(ar.Format)=="function"then
+local av,aw=pcall(ar.Format,as,au,ar.Value.Min,ar.Value.Max)
+if av and aw~=nil then
+return tostring(aw)
+end
+end
+
+if ar.DisplayMode=="Value"then
+return FormatNumber(as)
+elseif ar.DisplayMode=="Fraction"then
+return FormatNumber(as).."/"..FormatNumber(ar.Value.Max)
+end
+
+return tostring(math.floor(au+0.5)).."%"
+end
+
+ar.ProgressBarFrame=a.E(){
+Title=ar.Title,
+Desc=ar.Desc,
+Parent=ai.Parent,
+TextOffset=ar.Width+ar.ControlGap,
+Hover=false,
+Tab=ai.Tab,
+Index=ai.Index,
+Window=ai.Window,
+ElementTable=ar,
+ParentConfig=ai,
+Tags=ai.Tags,
+}
+
+ar.UIElements.Fill=aa.NewRoundFrame(99,"Squircle",{
+Name="Fill",
+Size=ar.Indeterminate and UDim2.new(0.3,0,1,0)
+or UDim2.new(GetRatio(ar.Value.Default),0,1,0),
+Position=ar.Indeterminate and UDim2.new(-0.3,0,0,0)or UDim2.new(0,0,0,0),
+ThemeTag={
+ImageColor3="Slider",
+},
+})
+
+ar.UIElements.Bar=aa.NewRoundFrame(99,"Squircle",{
+Name="Bar",
+Size=UDim2.new(1,ar.ShowValue and-(ar.ValueWidth+8)or 0,0,6),
+ClipsDescendants=true,
+ImageTransparency=0.9,
+ThemeTag={
+ImageColor3="Text",
+},
+},{
+ar.UIElements.Fill,
+})
+
+ar.UIElements.Value=ad("TextLabel",{
+Name="Value",
+Size=UDim2.new(0,ar.ValueWidth,0,20),
+BackgroundTransparency=1,
+FontFace=Font.new(aa.Font,Enum.FontWeight.Medium),
+Text=GetValueText(ar.Value.Default,GetRatio(ar.Value.Default)),
+TextSize=14,
+TextTransparency=0.25,
+TextTruncate="AtEnd",
+TextXAlignment="Right",
+Visible=ar.ShowValue,
+ThemeTag={
+TextColor3="Text",
+},
+})
+
+ar.UIElements.Container=ad("Frame",{
+Name="ProgressBarContainer",
+Size=UDim2.new(0,ar.Width,0,36),
+Position=UDim2.new(1,0,0.5,0),
+AnchorPoint=Vector2.new(1,0.5),
+BackgroundTransparency=1,
+Parent=ar.ProgressBarFrame.UIElements.Main,
+},{
+ad("UIListLayout",{
+Padding=UDim.new(0,8),
+FillDirection="Horizontal",
+HorizontalAlignment="Right",
+VerticalAlignment="Center",
+}),
+ar.UIElements.Bar,
+ar.UIElements.Value,
+})
+
+if ar.Indeterminate then
+local as=ae(
+ar.UIElements.Fill,
+1/ar.Speed,
+{Position=UDim2.new(1,0,0,0)},
+Enum.EasingStyle.Linear,
+Enum.EasingDirection.InOut,-1
+)
+aa.AddSignal(ar.UIElements.Bar.Destroying,function()
+as:Cancel()
+end)
+as:Play()
+end
+
+local function Update(as,at)
+local au=ToFiniteNumber(as)
+if au==nil then
+return ar.Value.Default
+end
+
+au=math.clamp(au,ar.Value.Min,ar.Value.Max)
+ar.Value.Default=au
+
+local av=GetRatio(au)
+local aw=UDim2.new(av,0,1,0)
+
+if ar.UIElements.Fill and not ar.Indeterminate then
+if at or not ar.Animate or ar.AnimationDuration<=0 then
+ar.UIElements.Fill.Size=aw
+else
+ae(
+ar.UIElements.Fill,
+ar.AnimationDuration,
+{Size=aw},
+Enum.EasingStyle.Quint,
+Enum.EasingDirection.Out
+):Play()
+end
+end
+
+ar.UIElements.Value.Text=GetValueText(au,av)
+return au
+end
+
+function ar.Set(as,at)
+return Update(at,false)
+end
+
+function ar.Get(as)
+return ar.Value.Default
+end
+
+function ar.GetPercentage(as)
+return GetRatio(ar.Value.Default)*100
+end
+
+function ar.SetRange(as,at,au)
+at=ToFiniteNumber(at)
+au=ToFiniteNumber(au)
+if at==nil or au==nil then
+return ar.Value.Min,ar.Value.Max
+end
+if at>au then
+at,au=au,at
+end
+ar.Value.Min=at
+ar.Value.Max=au
+Update(ar.Value.Default,false)
+return at,au
+end
+
+function ar.SetMin(as,at)
+at=ToFiniteNumber(at)
+if at==nil then
+return ar.Value.Min
+end
+ar:SetRange(at,math.max(at,ar.Value.Max))
+return ar.Value.Min
+end
+
+function ar.SetMax(as,at)
+at=ToFiniteNumber(at)
+if at==nil then
+return ar.Value.Max
+end
+ar:SetRange(math.min(ar.Value.Min,at),at)
+return ar.Value.Max
+end
+
+function ar.Destroy(as)
+ar.ProgressBarFrame:Destroy()
+end
+
+Update(ar.Value.Default,true)
+
+return ar.__type,ar
+end
+
+return af end function a.as():typeof(__modImpl())local aa=a.cache.as if not aa then aa={c=__modImpl()}a.cache.as=aa end return aa.c end end 
+do local function __modImpl()
+
 return{
 Elements={
 Paragraph=a.F(),
@@ -15085,6 +15804,10 @@ Space=a.x(),
 Divider=a.y(),
 Image=a.ag(),
 Group=a.ah(),
+HStack=a.ap(),
+VStack=a.aq(),
+Viewport=a.ar(),
+ProgressBar=a.as(),
 Video=a.ai(),
 },
 Load=function(aa,ad,ae,af,ag,ai,ak,al,am)
@@ -15342,6 +16065,8 @@ IconShape=al.IconShape,
 IconThemed=al.IconThemed,
 Locked=al.Locked,
 ShowTabTitle=al.ShowTabTitle,
+TabTitleAlign=al.TabTitleAlign or"Left",
+CustomEmptyPage=(typeof(al.CustomEmptyPage)=="table"and next(al.CustomEmptyPage)~=nil)and al.CustomEmptyPage or nil,
 Border=al.Border,
 Selected=false,
 Index=nil,
@@ -15591,7 +16316,7 @@ FontFace=Font.new(ae.Font,Enum.FontWeight.SemiBold),
 TextTruncate="AtEnd",
 RichText=true,
 LayoutOrder=2,
-TextXAlignment="Left",
+TextXAlignment=an.TabTitleAlign,
 BackgroundTransparency=1,
 }),
 af("UIPadding",{
@@ -15777,11 +16502,8 @@ return ak:SelectTab(an.Index)
 end
 
 task.spawn(function()
-local ax=af("Frame",{
-BackgroundTransparency=1,
-Size=UDim2.new(1,0,1,-Window.UIElements.Main.Main.Topbar.AbsoluteSize.Y),
-Parent=an.UIElements.ContainerFrame
-},{
+local EmptyCfg=an.CustomEmptyPage
+local EmptyChildren={
 af("UIListLayout",{
 Padding=UDim.new(0,8),
 SortOrder="LayoutOrder",
@@ -15789,7 +16511,17 @@ VerticalAlignment="Center",
 HorizontalAlignment="Center",
 FillDirection="Vertical",
 }),
-af("ImageLabel",{
+}
+
+if EmptyCfg then
+if EmptyCfg.Icon then
+local EmptyIconSize=tonumber(EmptyCfg.IconSize)or 48
+local EmptyIcon=ae.Image(EmptyCfg.Icon,EmptyCfg.Icon,0,Window.Folder,"EmptyPage",true)
+EmptyIcon.Size=UDim2.fromOffset(EmptyIconSize,EmptyIconSize)
+table.insert(EmptyChildren,EmptyIcon)
+end
+else
+table.insert(EmptyChildren,af("ImageLabel",{
 Size=UDim2.new(0,48,0,48),
 Image=ae.Icon"frown"[1],
 ImageRectOffset=ae.Icon"frown"[2].ImageRectPosition,
@@ -15799,10 +16531,14 @@ ImageColor3="Icon"
 },
 BackgroundTransparency=1,
 ImageTransparency=.6,
-}),
-af("TextLabel",{
+}))
+end
+
+local EmptyTitle=EmptyCfg and EmptyCfg.Title or(not EmptyCfg and"This tab is empty"or nil)
+if EmptyTitle then
+table.insert(EmptyChildren,af("TextLabel",{
 AutomaticSize="XY",
-Text="This tab is empty",
+Text=EmptyTitle,
 ThemeTag={
 TextColor3="Text"
 },
@@ -15810,8 +16546,28 @@ TextSize=18,
 TextTransparency=.5,
 BackgroundTransparency=1,
 FontFace=Font.new(ae.Font,Enum.FontWeight.Medium),
-})
-})
+}))
+end
+
+if EmptyCfg and EmptyCfg.Desc then
+table.insert(EmptyChildren,af("TextLabel",{
+AutomaticSize="XY",
+Text=EmptyCfg.Desc,
+ThemeTag={
+TextColor3="Text"
+},
+TextSize=15,
+TextTransparency=.65,
+BackgroundTransparency=1,
+FontFace=Font.new(ae.Font,Enum.FontWeight.Regular),
+}))
+end
+
+local ax=af("Frame",{
+BackgroundTransparency=1,
+Size=UDim2.new(1,0,1,-Window.UIElements.Main.Main.Topbar.AbsoluteSize.Y),
+Parent=an.UIElements.ContainerFrame
+},EmptyChildren)
 
 
 
@@ -19565,7 +20321,7 @@ TransparencyValue=0.15,
 UIScale=1,
 
 ConfigManager=nil,
-Version="0.0.0",
+Version="0.0.6",
 
 Services=a.j(),
 
