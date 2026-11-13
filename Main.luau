@@ -7,7 +7,7 @@ print([[
   \__/\  / |__|___|  /\____ ||______/ |___|  |____|   |____/____//____  >
        \/          \/      \/                                         \/ 
                                                           
-             WindUI Plus - Version 0.0.6
+             WindUI Plus - Version 0.0.7
 ]])
 
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
@@ -2081,7 +2081,7 @@ New=a.i().New
 return[[
 {
     "name": "windui-plus",
-    "version": "v0.0.6",
+    "version": "v0.0.7",
     "main": "./dist/main.lua",
     "repository": "https://github.com/",
     "discord": "http://discord.gg/AxosHub",
@@ -19987,22 +19987,11 @@ W.Size=UDim2.new(1,0,0,40)
 W.AutomaticSize=Enum.AutomaticSize.None
 end
 else
-local V=U-T
+local V=#S
 if V>0 then
-local W
-local X=math.huge
-
 for Y,_ in ipairs(S)do
-local aC=_.AbsoluteSize.X/au.WindUI.UIScale
-if aC<X then
-X=aC
-W=_
-end
-end
-
-if W then
-W.Size=UDim2.new(0,X+V,1,0)
-W.AutomaticSize=Enum.AutomaticSize.None
+_.Size=UDim2.new(1/V,-6*(V-1)/V,1,0)
+_.AutomaticSize=Enum.AutomaticSize.None
 end
 end
 end
@@ -20321,7 +20310,7 @@ TransparencyValue=0.15,
 UIScale=1,
 
 ConfigManager=nil,
-Version="0.0.6",
+Version="0.0.7",
 
 Services=a.j(),
 
