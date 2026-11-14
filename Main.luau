@@ -4184,7 +4184,7 @@ Parent=ak,
 })
 
 local am=ae("Frame",{
-Size=UDim2.new(1,12,1,12),
+Size=UDim2.new(1,0,1,0),
 Position=UDim2.new(0.5,0,0.5,0),
 AnchorPoint=Vector2.new(0.5,0.5),
 BackgroundTransparency=1,
@@ -4251,7 +4251,7 @@ al.Position=UDim2.new(0,0,av,0)
 end
 
 ad.AddSignal(ak.InputBegan,function(ap)
-if(ap.UserInputType==Enum.UserInputType.MouseButton1 or ap.UserInputType==Enum.UserInputType.Touch)then
+if ag.ScrollingEnabled and(ap.UserInputType==Enum.UserInputType.MouseButton1 or ap.UserInputType==Enum.UserInputType.Touch)then
 local aq=al.AbsolutePosition.Y
 local ar=aq+al.AbsoluteSize.Y
 
@@ -4272,7 +4272,7 @@ end
 end)
 
 ad.AddSignal(am.InputBegan,function(ap)
-if ap.UserInputType==Enum.UserInputType.MouseButton1 or ap.UserInputType==Enum.UserInputType.Touch then
+if ag.ScrollingEnabled and(ap.UserInputType==Enum.UserInputType.MouseButton1 or ap.UserInputType==Enum.UserInputType.Touch)then
 an=true
 ao=ap.Position.Y-al.AbsolutePosition.Y
 
@@ -8160,7 +8160,9 @@ ap=az
 ad.SafeCallback(ak.Callback,FormatValue(az))
 end
 
+local lockPos=ax and ax.CanvasPosition
 am=ac.RenderStepped:Connect(function()
+if lockPos and ax.CanvasPosition~=lockPos then ax.CanvasPosition=lockPos end
 local g=al and aA.Position.X or ab:GetMouseLocation().X
 local h=math.clamp((g-ak.UIElements.SliderIcon.AbsolutePosition.X)/ak.UIElements.SliderIcon.AbsoluteSize.X,0,1)
 local j,l=GetMinMax()
