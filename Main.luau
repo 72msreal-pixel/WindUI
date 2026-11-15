@@ -17663,6 +17663,7 @@ local D = {
     Empty = "No messages yet. Be the first to say hi!",
     Editing = "Editing message",
     Cooldown = "Wait %.1fs before sending again",
+    Countdown = "%.1fs",
     Sending = "Sending...",
     Failed = "Failed to send, retrying",
     SetupTitle = "GeneralTab isn't configured",
@@ -17678,6 +17679,7 @@ local D = {
     NameMode = { "Name" },
     NameColor = { Color3.fromRGB(32, 99, 235), U.color },
     Cooldown = { 2, U.num(0) },
+    LayoutOrder = { nil, U.num(-2147483648, 2147483647, true) },
     PollInterval = { 2, U.num(.5) },
     IdlePollInterval = { 10, U.num(1) },
     BatchInterval = { 1.2, U.num(.3) },
@@ -17860,6 +17862,16 @@ function U.icon(name, size, tag, color)
   })
 end
 
+function U.glyph(name, size, text, tag)
+  return U.icon(name, size, tag) or U.label({
+    Text = text,
+    Size = UDim2.fromScale(1, 1),
+    TextSize = 14,
+    Weight = "SemiBold",
+    ThemeTag = { TextColor3 = tag or "White" },
+  })
+end
+
 function M.Attach(tab, Window, cfg)
   local S = U.merge({}, D.Strings)
   local C = {}
@@ -17900,6 +17912,7 @@ function M.Attach(tab, Window, cfg)
       end
     end
     if type(src.Strings) == "table" then U.merge(S, src.Strings) end
+    if src.LayoutOrder ~= nil then tab.UIElements.Main.LayoutOrder = C.LayoutOrder end
     if src.NameColor ~= nil then
       for _, en in pairs(st.rows) do
         if en.nameLabel then en.nameLabel.TextColor3 = C.NameColor end
@@ -18010,12 +18023,38 @@ function M.Attach(tab, Window, cfg)
     if ui.setup.Visible then ui.empty.Visible = false end
   end
 
+  function chat.wait()
+    return math.max(0, st.lastSend + C.Cooldown - os.clock())
+  end
+
+  function chat.tick()
+    local left = chat.wait()
+    local show = left > 0 and not st.editing
+    ui.count.Visible = show
+    ui.sendIcon.Visible = not show
+    if show then ui.count.Text = string.format(S.Countdown, left) end
+  end
+
+  function chat.countdown()
+    if st.counting or chat.wait() <= 0 then return end
+    st.counting = true
+    task.spawn(function()
+      while st.alive and chat.wait() > 0 do
+        chat.tick()
+        task.wait(.1)
+      end
+      st.counting = nil
+      if st.alive then chat.tick() end
+    end)
+  end
+
   function chat.layout(instant)
     local h = D.Input + (st.editing and D.Edit or 0)
     local t = instant and 0 or .2
     U.tween(ui.bottom, t, { Size = UDim2.new(1, 0, 0, h) })
     U.tween(ui.panel, t, { Size = UDim2.new(1, 0, 1, -(D.Header + 6 + h + 8)) })
     ui.editBar.Visible = st.editing ~= nil
+    chat.tick()
   end
 
   function chat.atBottom()
@@ -18480,13 +18519,14 @@ function M.Attach(tab, Window, cfg)
       return true
     end
 
-    local wait = st.lastSend + C.Cooldown - os.clock()
+    local wait = chat.wait()
     if wait > 0 then
       chat.flash(string.format(S.Cooldown, wait))
       return false
     end
 
     st.lastSend = os.clock()
+    chat.countdown()
     st.counter += 1
     local id = chat.uid()
     local key = string.format("%010d%06x%02x%04x", os.time(), id % 0x1000000, st.seq, st.counter % 0x10000)
@@ -18647,7 +18687,7 @@ function M.Attach(tab, Window, cfg)
     ThemeTag = { ImageColor3 = "Text" },
     ImageTransparency = .85,
   }, {
-    U.label({ Text = "✕", Size = UDim2.fromScale(1, 1), TextSize = 12, ThemeTag = { TextColor3 = "Text" } }),
+    U.glyph("x", 12, "✕", "Text"),
   }, true)
 
   ui.editBar = Round(10, "Squircle", {
@@ -18682,20 +18722,22 @@ function M.Attach(tab, Window, cfg)
     ThemeTag = { TextColor3 = "Text", PlaceholderColor3 = "Placeholder" },
   })
 
+  ui.sendIcon = U.glyph("send", 20, S.SendText)
+
+  ui.count = U.label({
+    Size = UDim2.fromScale(1, 1),
+    TextSize = 13,
+    Visible = false,
+    Weight = "SemiBold",
+    ThemeTag = { TextColor3 = "White" },
+  })
+
   ui.send = Round(14, "Squircle", {
     AnchorPoint = Vector2.new(1, 0),
     Position = UDim2.fromScale(1, 0),
     Size = UDim2.fromOffset(D.Input, D.Input),
     ThemeTag = { ImageColor3 = "Primary" },
-  }, {
-    U.icon("send", 20) or U.label({
-      Text = S.SendText,
-      Size = UDim2.fromScale(1, 1),
-      TextSize = 14,
-      Weight = "SemiBold",
-      ThemeTag = { TextColor3 = "White" },
-    }),
-  }, true)
+  }, { ui.sendIcon, ui.count }, true)
 
   U.box({
     AnchorPoint = Vector2.new(0, 1),
