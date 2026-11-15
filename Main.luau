@@ -17605,6 +17605,7 @@ do local function __modImpl()
 local Players = game:GetService "Players"
 local HttpService = game:GetService "HttpService"
 local RunService = game:GetService "RunService"
+local UserInputService = game:GetService "UserInputService"
 
 local Creator = a.c()
 local New = Creator.New
@@ -17671,6 +17672,9 @@ local D = {
     SetupDesc = 'Add Url = "https://your-project-default-rtdb.firebasedatabase.app" to GeneralTab{...} to enable chat.',
     NoHttp = "Your executor doesn't support request/http_request, so online chat is unavailable.",
     SendText = "Send",
+    Reply = "Reply",
+    Replying = "Replying to %s",
+    Gone = "Original message not found",
   },
   Options = {
     Url = {},
@@ -17694,6 +17698,8 @@ local D = {
     AllowDelete = { true, U.flag },
     AllowCopy = { true, U.flag },
     ShowTime = { true, U.flag },
+    GroupMessages = { true, U.flag },
+    GroupGap = { 300, U.num(0) },
     Anonymous = { false, U.flag },
     SaveConfig = { true, U.flag },
     ConfigFile = { "WindUI/GeneralTab.json" },
@@ -17779,11 +17785,28 @@ function U.time(t, S)
   return string.format("%d/%d/%d %s", d.day, d.month, d.year, hm)
 end
 
+function U.same(a, b, gap)
+  if a.i and b.i then
+    if a.i ~= b.i then return false end
+  elseif a.n ~= b.n then
+    return false
+  end
+  return not (a.t and b.t) or math.abs(b.t - a.t) <= gap
+end
+
 function U.message(v)
   if type(v) ~= "table" then return end
   local m = v.m or v.msg
   if type(m) ~= "string" or m == "" then return end
-  return { n = tostring(v.n or v.name or "?"), i = tonumber(v.i), m = m, t = tonumber(v.t), e = tonumber(v.e) }
+  local r = type(v.r) == "table" and v.r or {}
+  return {
+    n = tostring(v.n or v.name or "?"),
+    i = tonumber(v.i),
+    m = m,
+    t = tonumber(v.t),
+    e = tonumber(v.e),
+    r = type(r.m) == "string" and r.k and { k = tostring(r.k), n = tostring(r.n or "?"), i = tonumber(r.i), m = U.cut(r.m, 80) } or nil,
+  }
 end
 
 function U.font(weight)
@@ -17914,6 +17937,7 @@ function M.Attach(tab, Window, cfg)
     end
     if type(src.Strings) == "table" then U.merge(S, src.Strings) end
     if src.LayoutOrder ~= nil then tab.UIElements.Main.LayoutOrder = C.LayoutOrder end
+    if src.GroupMessages ~= nil or src.GroupGap ~= nil then chat.group() end
     if src.NameColor ~= nil then
       for _, en in pairs(st.rows) do
         if en.nameLabel then en.nameLabel.TextColor3 = C.NameColor end
@@ -18050,11 +18074,16 @@ function M.Attach(tab, Window, cfg)
   end
 
   function chat.layout(instant)
-    local h = D.Input + (st.editing and D.Edit or 0)
+    local h = D.Input + ((st.editing or st.reply) and D.Edit or 0)
     local t = instant and 0 or .2
     U.tween(ui.bottom, t, { Size = UDim2.new(1, 0, 0, h) })
     U.tween(ui.panel, t, { Size = UDim2.new(1, 0, 1, -(D.Header + 6 + h + 8)) })
-    ui.editBar.Visible = st.editing ~= nil
+    ui.editBar.Visible = h > D.Input
+    if st.editing then
+      ui.barText.Text = S.Editing
+    elseif st.reply then
+      ui.barText.Text = string.format(S.Replying, st.reply.n) .. "  ·  " .. st.reply.m
+    end
     chat.tick()
   end
 
@@ -18088,7 +18117,9 @@ function M.Attach(tab, Window, cfg)
 
   function chat.widths()
     local size = Vector2.new(chat.maxWidth(), math.huge)
-    for _, en in pairs(st.rows) do en.limit.MaxSize = size end
+    for _, en in pairs(st.rows) do
+      for _, cap in ipairs(en.caps) do cap.MaxSize = size end
+    end
   end
 
   function chat.meta(en)
@@ -18128,6 +18159,7 @@ function M.Attach(tab, Window, cfg)
       if en then en.row.LayoutOrder = i end
     end
     while #st.order > C.MaxMessages + 30 do chat.drop(st.order[1]) end
+    chat.group()
     ui.empty.Visible = #st.order == 0 and chat.ready()
   end
 
@@ -18144,6 +18176,7 @@ function M.Attach(tab, Window, cfg)
   function chat.edit(key)
     local en = st.rows[key]
     if not en then return end
+    chat.pick()
     st.editing = key
     ui.input.Text = en.data.m
     chat.layout()
@@ -18236,6 +18269,7 @@ function M.Attach(tab, Window, cfg)
   function chat.popup(en)
     local mine = chat.mine(en.data)
     local items = {
+      { "Reply", "reply", true, function() chat.reply(en) end },
       { "Copy", "copy", C.AllowCopy, function() chat.copy(en.data.m) end },
       { "Edit", "pencil", mine and C.AllowEdit, function() chat.edit(en.key) end },
       { "Delete", "trash-2", mine and C.AllowDelete, function() chat.delete(en.key) end, Color3.fromRGB(240, 90, 90) },
@@ -18271,13 +18305,120 @@ function M.Attach(tab, Window, cfg)
     chat.openLayer()
   end
 
+  function chat.cap()
+    return New("UISizeConstraint", { MaxSize = Vector2.new(chat.maxWidth(), math.huge) })
+  end
+
+  function chat.shine(en)
+    local on = en.target or en.mention or en.flash
+    for _, obj in ipairs { en.glow, en.line } do
+      U.tween(obj, .25, { BackgroundTransparency = on and 0 or 1 })
+    end
+  end
+
+  function chat.group()
+    local prev
+    for _, key in ipairs(st.order) do
+      local en = st.rows[key]
+      if en then
+        en.head = not (C.GroupMessages and prev and not en.data.r and U.same(prev.data, en.data, C.GroupGap))
+        if en.nameLabel then en.nameLabel.Visible = en.head end
+        en.gap.Size = UDim2.new(1, 0, 0, en.head and 6 or 1)
+        prev = en
+      end
+    end
+  end
+
+  function chat.pick(en)
+    local old = st.reply and st.rows[st.reply.k]
+    st.reply = en and {
+      k = en.key,
+      n = en.data.n,
+      i = en.data.i,
+      m = U.cut(en.data.m:gsub("%s+", " "), 80),
+    } or nil
+    if old then
+      old.target = nil
+      chat.shine(old)
+    end
+    if en then
+      en.target = true
+      chat.shine(en)
+    end
+  end
+
+  function chat.reply(en)
+    if st.editing then chat.cancelEdit() end
+    chat.pick(en)
+    chat.layout()
+    ui.input:CaptureFocus()
+  end
+
+  function chat.dismiss()
+    if st.editing then return chat.cancelEdit() end
+    chat.pick()
+    chat.layout()
+  end
+
+  function chat.jump(key)
+    local en = st.rows[key]
+    if not en then return chat.flash(S.Gone) end
+    local s = ui.scroll
+    local y = s.CanvasPosition.Y + en.row.AbsolutePosition.Y - s.AbsolutePosition.Y - 40
+    U.tween(s, .3, { CanvasPosition = Vector2.new(0, math.max(0, y)) })
+    en.flash = true
+    chat.shine(en)
+    task.delay(1.8, function()
+      if not (st.alive and en.row.Parent) then return end
+      en.flash = nil
+      chat.shine(en)
+    end)
+  end
+
+  function chat.slide(en, shift, time)
+    U.tween(en.slide, time, { [en.mine and "PaddingRight" or "PaddingLeft"] = UDim.new(0, shift) })
+    U.tween(en.arrowScale, time, { Scale = math.clamp((shift - 18) / 22, .05, 1) })
+    en.arrow.Visible = shift > 18
+  end
+
   function chat.hold(en)
     local b = en.bubble
+    local dir = en.mine and -1 or 1
     Creator.AddSignal(b.InputBegan, function(input)
       if not U.tap(input) then return end
       st.hold += 1
       local id, from = st.hold, input.Position
+      local drag = { shift = 0, links = {} }
       U.tween(b, .35, { ImageTransparency = en.tone - .12 })
+
+      function drag.finish()
+        for _, link in ipairs(drag.links) do link:Disconnect() end
+        if not drag.swipe then return end
+        ui.scroll.ScrollingEnabled = true
+        if drag.shift >= 40 then chat.reply(en) end
+        chat.slide(en, 0, .2)
+      end
+
+      drag.links[1] = UserInputService.InputChanged:Connect(function(move)
+        local kind = move.UserInputType
+        if move ~= input and kind ~= Enum.UserInputType.MouseMovement and kind ~= Enum.UserInputType.Touch then return end
+        local dx, dy = (move.Position.X - from.X) * dir, math.abs(move.Position.Y - from.Y)
+        if not drag.swipe then
+          if dy > 14 and dy > dx then return drag.finish() end
+          if dx < 12 or dx < dy * 1.5 then return end
+          drag.swipe = true
+          st.hold += 1
+          ui.scroll.ScrollingEnabled = false
+          U.tween(b, .15, { ImageTransparency = en.tone })
+        end
+        drag.shift = math.clamp(dx / chat.scale() * .7, 0, 56)
+        chat.slide(en, drag.shift, .06)
+      end)
+
+      drag.links[2] = input.Changed:Connect(function()
+        if input.UserInputState == Enum.UserInputState.End then drag.finish() end
+      end)
+
       task.delay(.4, function()
         if not st.alive or st.hold ~= id then return end
         local held = input.UserInputState ~= Enum.UserInputState.End and (input.Position - from).Magnitude <= 12
@@ -18311,12 +18452,14 @@ function M.Attach(tab, Window, cfg)
     local fade = pending == true or st.loaded == true
     local en = {
       key = key,
+      mine = mine,
       tone = mine and .7 or .9,
       data = data,
       pending = pending == true,
       failed = false,
+      mention = not mine and data.r ~= nil and chat.mine(data.r),
       grace = U.grace(),
-      limit = New("UISizeConstraint", { MaxSize = Vector2.new(chat.maxWidth(), math.huge) }),
+      caps = { chat.cap(), data.r and chat.cap() or nil },
     }
 
     en.msg = U.label({
@@ -18327,7 +18470,7 @@ function M.Attach(tab, Window, cfg)
       TextXAlignment = "Left",
       LayoutOrder = 1,
       ThemeTag = { TextColor3 = "Text" },
-    }, { en.limit })
+    }, { en.caps[1] })
 
     en.meta = U.label({
       AutomaticSize = "XY",
@@ -18338,6 +18481,39 @@ function M.Attach(tab, Window, cfg)
       ThemeTag = { TextColor3 = "Text" },
     })
 
+    if data.r then
+      en.quote = U.box({ AutomaticSize = "XY", Text = "", AutoButtonColor = false }, {
+        New("UIListLayout", { FillDirection = "Horizontal", Padding = UDim.new(0, 6), VerticalAlignment = "Center" }),
+        New("Frame", {
+          Size = UDim2.fromOffset(2, 26),
+          BorderSizePixel = 0,
+          BackgroundTransparency = .55,
+          ThemeTag = { BackgroundColor3 = "Text" },
+        }, { New("UICorner", { CornerRadius = UDim.new(1, 0) }) }),
+        U.box({ AutomaticSize = "XY" }, {
+          New("UIListLayout", {}),
+          U.label({
+            Text = data.r.n,
+            AutomaticSize = "XY",
+            TextSize = 12,
+            TextTransparency = .15,
+            Weight = "SemiBold",
+            ThemeTag = { TextColor3 = "Text" },
+          }),
+          U.label({
+            Text = U.cut(data.r.m:gsub("%s+", " "), 60),
+            AutomaticSize = "XY",
+            TextSize = 12,
+            TextTransparency = .45,
+            TextTruncate = "AtEnd",
+            LayoutOrder = 1,
+            ThemeTag = { TextColor3 = "Text" },
+          }, { en.caps[2] }),
+        }),
+      }, "TextButton")
+      Creator.AddSignal(en.quote.MouseButton1Click, function() chat.jump(data.r.k) end)
+    end
+
     en.bubble = Round(16, "Squircle", {
       AutomaticSize = "XY",
       Size = UDim2.new(),
@@ -18347,6 +18523,7 @@ function M.Attach(tab, Window, cfg)
     }, {
       New("UIListLayout", { Padding = UDim.new(0, 2), HorizontalAlignment = align }),
       U.pad(7, 6, 12),
+      en.quote,
       en.msg,
       en.meta,
     }, true)
@@ -18368,9 +18545,49 @@ function M.Attach(tab, Window, cfg)
       en.bubble,
     }, "CanvasGroup")
 
+    en.glow = New("Frame", {
+      Size = UDim2.fromScale(1, 1),
+      ZIndex = 0,
+      BackgroundTransparency = 1,
+      BorderSizePixel = 0,
+      ThemeTag = { BackgroundColor3 = "Primary" },
+    }, {
+      New("UIGradient", {
+        Transparency = NumberSequence.new { NumberSequenceKeypoint.new(0, .72), NumberSequenceKeypoint.new(1, 1) },
+      }),
+    })
+
+    en.line = New("Frame", {
+      Size = UDim2.new(0, 3, 1, 0),
+      BackgroundTransparency = 1,
+      BorderSizePixel = 0,
+      ThemeTag = { BackgroundColor3 = "Primary" },
+    }, { New("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+
+    en.slide = U.pad(1, 1, 0, 0)
+    en.arrowScale = New("UIScale", { Scale = .05 })
+    en.arrow = U.box({
+      AnchorPoint = Vector2.new(mine and 1 or 0, .5),
+      Position = UDim2.new(mine and 1 or 0, mine and -6 or 6, .5, 0),
+      Size = UDim2.fromOffset(24, 24),
+      Visible = false,
+    }, { en.arrowScale, U.glyph("reply", 16, "↩", "Text") })
+
+    en.gap = U.box({ Size = UDim2.new(1, 0, 0, 6) })
+
     en.row = U.box({ Name = key, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = "Y", Parent = ui.scroll }, {
-      New("UIListLayout", { FillDirection = "Horizontal", HorizontalAlignment = align }),
-      en.holder,
+      New("UIListLayout", {}),
+      en.gap,
+      U.box({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = "Y", LayoutOrder = 1 }, {
+        en.glow,
+        en.line,
+        en.arrow,
+        U.box({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = "Y" }, {
+          New("UIListLayout", { FillDirection = "Horizontal", HorizontalAlignment = align }),
+          en.slide,
+          en.holder,
+        }),
+      }),
     })
 
     st.rows[key] = en
@@ -18378,6 +18595,7 @@ function M.Attach(tab, Window, cfg)
 
     chat.hold(en)
     if fade then U.tween(en.holder, .3, { GroupTransparency = 0 }) end
+    if en.mention then chat.shine(en) end
 
     chat.meta(en)
     return en
@@ -18531,9 +18749,13 @@ function M.Attach(tab, Window, cfg)
     st.counter += 1
     local id = chat.uid()
     local key = string.format("%010d%06x%02x%04x", os.time(), id % 0x1000000, st.seq, st.counter % 0x10000)
-    local data = { n = chat.name(), i = id, m = text, t = os.time() }
+    local data = { n = chat.name(), i = id, m = text, t = os.time(), r = st.reply and table.clone(st.reply) }
     st.pending[key] = table.clone(data)
     chat.row(key, data, true)
+    if st.reply then
+      chat.pick()
+      chat.layout()
+    end
     chat.reindex()
     chat.widths()
     chat.toBottom(true)
@@ -18604,7 +18826,7 @@ function M.Attach(tab, Window, cfg)
     ClipsDescendants = true,
   }, {
     U.pad(10, 10, 10, 12),
-    New("UIListLayout", { Padding = UDim.new(0, 8) }),
+    New("UIListLayout", {}),
   })
 
   ui.panel = U.glass(16, .94, .9, {
@@ -18691,6 +18913,16 @@ function M.Attach(tab, Window, cfg)
     U.glyph("x", 12, "✕", "Text"),
   }, true)
 
+  ui.barText = U.label({
+    Position = UDim2.fromOffset(12, 0),
+    Size = UDim2.new(1, -50, 1, 0),
+    TextSize = 13,
+    TextXAlignment = "Left",
+    TextTruncate = "AtEnd",
+    Weight = "Medium",
+    ThemeTag = { TextColor3 = "Text" },
+  })
+
   ui.editBar = Round(10, "Squircle", {
     Size = UDim2.new(1, 0, 0, D.Edit - 4),
     Visible = false,
@@ -18698,15 +18930,7 @@ function M.Attach(tab, Window, cfg)
     ImageTransparency = .75,
     Parent = ui.bottom,
   }, {
-    U.label({
-      Text = S.Editing,
-      Position = UDim2.fromOffset(12, 0),
-      Size = UDim2.new(1, -50, 1, 0),
-      TextSize = 13,
-      TextXAlignment = "Left",
-      Weight = "Medium",
-      ThemeTag = { TextColor3 = "Text" },
-    }),
+    ui.barText,
     ui.close,
   })
 
@@ -18838,7 +19062,7 @@ function M.Attach(tab, Window, cfg)
     end
   end)
 
-  Creator.AddSignal(ui.close.MouseButton1Click, chat.cancelEdit)
+  Creator.AddSignal(ui.close.MouseButton1Click, chat.dismiss)
   Creator.AddSignal(ui.scroll:GetPropertyChangedSignal "AbsoluteWindowSize", chat.widths)
 
   ui.root.Destroying:Connect(function()
@@ -18910,6 +19134,7 @@ function M.Attach(tab, Window, cfg)
           Text = en.data.m,
           Time = en.data.t,
           Edited = en.data.e,
+          Reply = en.data.r,
         }
       end
     end
