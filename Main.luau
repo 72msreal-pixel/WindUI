@@ -17686,6 +17686,8 @@ local D = {
     Gone = "Original message not found",
     LoadMore = "Load older messages",
     Loading = "Loading...",
+    Rainbow = "Rainbow name when anonymous",
+    RainbowDesc = "Admin only. Your real ID is sent with your messages so the rainbow name stays",
   },
   Options = {
     Url = {},
@@ -17715,6 +17717,7 @@ local D = {
     GroupMessages = { true, U.flag },
     GroupGap = { 300, U.num(0) },
     Anonymous = { false, U.flag },
+    AdminRainbow = { false, U.flag },
     SaveConfig = { true, U.flag },
     ConfigFile = { "WindUI/GeneralTab.json" },
   },
@@ -17976,8 +17979,13 @@ function M.Attach(tab, Window, cfg)
     return tab.Selected == true and not Window.Closed
   end
 
+  function chat.isAdmin()
+    local p = st.player
+    return chat.admin { i = p.UserId, n = C.NameMode == "DisplayName" and p.DisplayName or p.Name }
+  end
+
   function chat.uid()
-    if not C.Anonymous then return st.player.UserId end
+    if not C.Anonymous or (C.AdminRainbow and chat.isAdmin()) then return st.player.UserId end
     st.anonId = st.anonId or -math.random(100000, 2147483647)
     return st.anonId
   end
@@ -17989,6 +17997,7 @@ function M.Attach(tab, Window, cfg)
     end)
     if not (ok and type(data) == "table") then return end
     if data.anonymous ~= nil then C.Anonymous = data.anonymous == true end
+    if data.rainbow ~= nil then C.AdminRainbow = data.rainbow == true end
     st.anonId = tonumber(data.anonId)
   end
 
@@ -17997,7 +18006,7 @@ function M.Attach(tab, Window, cfg)
     pcall(function()
       local dir = C.ConfigFile:match "^(.+)/[^/]+$"
       if dir and makefolder and not isfolder(dir) then makefolder(dir) end
-      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, anonId = st.anonId })
+      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, rainbow = C.AdminRainbow, anonId = st.anonId })
     end)
   end
 
@@ -18010,6 +18019,24 @@ function M.Attach(tab, Window, cfg)
   function chat.set(key, v)
     C[key] = v
     chat.sync()
+  end
+
+  function chat.switch(key, title, desc)
+    local toggle = tab:Toggle {
+      Title = title,
+      Desc = desc,
+      Value = C[key],
+      Callback = function(v) chat.set(key, v) end,
+    }
+    ui.switches[key] = function(on)
+      if toggle then toggle:Set(on, false) end
+    end
+  end
+
+  function chat.adminSwitch()
+    if not ui.switches.AdminRainbow and chat.isAdmin() then
+      chat.switch("AdminRainbow", S.Rainbow, S.RainbowDesc)
+    end
   end
 
   function chat.name()
@@ -19151,15 +19178,8 @@ function M.Attach(tab, Window, cfg)
     IconAlign = "Left",
     Callback = function() chat.page "chat" end,
   }
-  local anon = tab:Toggle {
-    Title = S.AnonMode,
-    Desc = S.AnonDesc,
-    Value = C.Anonymous,
-    Callback = function(v) chat.set("Anonymous", v) end,
-  }
-  ui.switches.Anonymous = function(on)
-    if anon then anon:Set(on, false) end
-  end
+  chat.switch("Anonymous", S.AnonMode, S.AnonDesc)
+  chat.adminSwitch()
 
   U.press(ui.send, 0, .3)
   U.press(ui.menuBtn, 1, .85)
@@ -19276,7 +19296,8 @@ function M.Attach(tab, Window, cfg)
       st.force = true
       chat.clear()
     end
-    if t.Anonymous ~= nil then chat.sync() end
+    if t.Anonymous ~= nil or t.AdminRainbow ~= nil then chat.sync() end
+    chat.adminSwitch()
     chat.setup()
     return api
   end
