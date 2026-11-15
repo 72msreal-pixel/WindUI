@@ -17925,6 +17925,7 @@ function M.Attach(tab, Window, cfg)
     order = {},
     pending = {},
     tomb = {},
+    names = {},
     unread = 0,
     lastSend = 0,
     fails = 0,
@@ -18355,8 +18356,28 @@ function M.Attach(tab, Window, cfg)
     chat.openLayer()
   end
 
+  function chat.nameOf(id)
+    local p = Players:GetPlayerByUserId(id)
+    if p then return p.Name end
+    if st.names[id] == nil then
+      st.names[id] = false
+      task.spawn(function()
+        local ok, name = pcall(Players.GetNameFromUserIdAsync, Players, id)
+        st.names[id] = ok and name or false
+        if not (st.alive and st.names[id]) then return end
+        for _, en in pairs(st.rows) do
+          if en.data.i == id then chat.paint(en) end
+        end
+      end)
+    end
+    return st.names[id]
+  end
+
   function chat.admin(d)
-    return C.AdminList[d.i] or C.AdminList[d.n] or false
+    local set = C.AdminList
+    if set[d.i] or set[d.n] then return true end
+    local name = d.i and d.i > 0 and chat.nameOf(d.i)
+    return name and set[name] or false
   end
 
   function chat.spectrum()
