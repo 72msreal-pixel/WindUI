@@ -17952,6 +17952,7 @@ function M.Attach(tab, Window, cfg)
     link = "wait",
     alive = true,
     force = true,
+    anonIds = {},
   }
 
   local ui = { switches = {} }
@@ -18003,6 +18004,7 @@ function M.Attach(tab, Window, cfg)
   function chat.uid()
     if not C.Anonymous or (C.AdminRainbow and chat.isAdmin()) then return st.player.UserId end
     st.anonId = st.anonId or -math.random(100000, 2147483647)
+    st.anonIds[tostring(st.player.UserId)] = st.anonId
     return st.anonId
   end
 
@@ -18014,7 +18016,8 @@ function M.Attach(tab, Window, cfg)
     if not (ok and type(data) == "table") then return end
     if data.anonymous ~= nil then C.Anonymous = data.anonymous == true end
     if data.rainbow ~= nil then C.AdminRainbow = data.rainbow == true end
-    st.anonId = tonumber(data.anonId)
+    if type(data.anonIds) == "table" then st.anonIds = data.anonIds end
+    st.anonId = tonumber(st.anonIds[tostring(st.player.UserId)])
     st.strikes = type(data.strikes) == "table" and data.strikes or {}
   end
 
@@ -18023,7 +18026,7 @@ function M.Attach(tab, Window, cfg)
     pcall(function()
       local dir = C.ConfigFile:match "^(.+)/[^/]+$"
       if dir and makefolder and not isfolder(dir) then makefolder(dir) end
-      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, rainbow = C.AdminRainbow, anonId = st.anonId, strikes = st.strikes })
+      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, rainbow = C.AdminRainbow, anonIds = st.anonIds, strikes = st.strikes })
     end)
   end
 
