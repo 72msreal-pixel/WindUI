@@ -7,7 +7,7 @@ print([[
   \__/\  / |__|___|  /\____ ||______/ |___|  |____|   |____/____//____  >
        \/          \/      \/                                         \/ 
                                                           
-             WindUI Plus - Version 0.0.8
+             WindUI Plus - Version 0.0.9
 ]])
 
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
@@ -2081,7 +2081,7 @@ New=a.i().New
 return[[
 {
     "name": "windui-plus",
-    "version": "v0.0.8",
+    "version": "v0.0.9",
     "main": "./dist/main.lua",
     "repository": "https://github.com/",
     "discord": "http://discord.gg/AxosHub",
@@ -18400,10 +18400,16 @@ function M.Attach(tab, Window, cfg)
     st.spin = true
     task.spawn(function()
       while st.alive do
-        for _, row in pairs(st.rows) do
-          if row.admin and row.nameLabel then row.nameLabel.Text = chat.spectrum(row.data.n) end
+        RunService.Heartbeat:Wait()
+        local s = ui.scroll
+        if chat.active() then
+          for _, row in pairs(st.rows) do
+            local y = row.row.AbsolutePosition.Y - s.AbsolutePosition.Y
+            if row.admin and y > -row.row.AbsoluteSize.Y and y < s.AbsoluteSize.Y then
+              row.nameLabel.Text = chat.spectrum(row.data.n)
+            end
+          end
         end
-        task.wait(.05)
       end
     end)
   end
@@ -22087,7 +22093,7 @@ TransparencyValue=0.15,
 UIScale=1,
 
 ConfigManager=nil,
-Version="0.0.8",
+Version="0.0.9",
 
 Services=a.j(),
 
