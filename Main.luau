@@ -18716,6 +18716,9 @@ function M.Attach(tab, Window, cfg)
     BorderSizePixel = 0,
     PlaceholderText = S.Placeholder,
     ClipsDescendants = true,
+    MultiLine = true,
+    TextWrapped = true,
+    ClearTextOnFocus = false,
     TextSize = 15,
     TextXAlignment = "Left",
     FontFace = U.font(),
@@ -18822,14 +18825,6 @@ function M.Attach(tab, Window, cfg)
   Creator.AddSignal(ui.send.MouseButton1Click, function()
     chat.submit()
     ui.input:CaptureFocus()
-  end)
-
-  Creator.AddSignal(ui.input.FocusLost, function(enter)
-    if not enter then return end
-    chat.submit()
-    task.defer(function()
-      if st.alive then ui.input:CaptureFocus() end
-    end)
   end)
 
   Creator.AddSignal(ui.input:GetPropertyChangedSignal "Text", function()
