@@ -17655,6 +17655,7 @@ local D = {
   Alias = { Url = "Link", Cooldown = "MessageDelay", AdminList = "adminlist" },
   Reload = { Url = true, Path = true },
   Item = 36,
+  Escape = { ["&"] = "&amp;", ["<"] = "&lt;", [">"] = "&gt;", ['"'] = "&quot;", ["'"] = "&apos;" },
   Strings = {
     Title = "General Chat",
     Placeholder = "Type a message...",
@@ -18183,7 +18184,6 @@ function M.Attach(tab, Window, cfg)
 
   function chat.update(en)
     en.msg.Text = en.data.m
-    if en.nameLabel then en.nameLabel.Text = en.data.n end
     chat.paint(en)
     chat.meta(en)
   end
@@ -18380,26 +18380,28 @@ function M.Attach(tab, Window, cfg)
     return name and set[name] or false
   end
 
-  function chat.spectrum()
-    local points = {}
-    for i = 0, 6 do
-      points[i + 1] = ColorSequenceKeypoint.new(i / 6, Color3.fromHSV((os.clock() * .2 + i / 7) % 1, .75, 1))
+  function chat.spectrum(text)
+    if not utf8.len(text) then return text end
+    local out, shift = {}, os.clock() * .2
+    for _, code in utf8.codes(text) do
+      local char = utf8.char(code):gsub("[&<>\"']", D.Escape)
+      out[#out + 1] = string.format('<font color="#%s">%s</font>', Color3.fromHSV((shift + #out / 7) % 1, .75, 1):ToHex(), char)
     end
-    return ColorSequence.new(points)
+    return table.concat(out)
   end
 
   function chat.paint(en)
     if not en.nameLabel then return end
-    local admin = chat.admin(en.data)
-    en.rainbow.Enabled = admin
-    en.nameLabel.TextColor3 = admin and Color3.new(1, 1, 1) or C.NameColor
-    if not admin or st.spin then return end
+    en.admin = chat.admin(en.data)
+    en.nameLabel.RichText = en.admin
+    en.nameLabel.TextColor3 = en.admin and Color3.new(1, 1, 1) or C.NameColor
+    en.nameLabel.Text = en.admin and chat.spectrum(en.data.n) or en.data.n
+    if not en.admin or st.spin then return end
     st.spin = true
     task.spawn(function()
       while st.alive do
-        local spectrum = chat.spectrum()
         for _, row in pairs(st.rows) do
-          if row.nameLabel and row.rainbow.Enabled then row.rainbow.Color = spectrum end
+          if row.admin and row.nameLabel then row.nameLabel.Text = chat.spectrum(row.data.n) end
         end
         task.wait(.05)
       end
@@ -18630,14 +18632,12 @@ function M.Attach(tab, Window, cfg)
     }, true)
 
     if not mine then
-      en.rainbow = New("UIGradient", { Enabled = false, Color = chat.spectrum() })
       en.nameLabel = U.label({
-        Text = data.n,
         AutomaticSize = "XY",
         TextSize = 13,
         LayoutOrder = 1,
         Weight = "SemiBold",
-      }, { U.pad(0, 0, 4, 0), en.rainbow })
+      }, { U.pad(0, 0, 4, 0) })
       chat.paint(en)
     end
 
