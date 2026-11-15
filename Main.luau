@@ -16813,6 +16813,7 @@ Visible=true,
 Position=UDim2.new(0,0,0,au.HeaderSize)
 },{
 ae("UIListLayout",{
+SortOrder="LayoutOrder",
 FillDirection="Vertical",
 Padding=UDim.new(0,as.Gap),
 VerticalAlignment="Bottom",
