@@ -17684,6 +17684,8 @@ local D = {
     Reply = "Reply",
     Replying = "Replying to %s",
     Gone = "Original message not found",
+    LoadMore = "Load older messages",
+    Loading = "Loading...",
   },
   Options = {
     Url = {},
@@ -17698,6 +17700,8 @@ local D = {
     PollInterval = { 2, U.num(.5) },
     IdlePollInterval = { 10, U.num(1) },
     BatchInterval = { 1.2, U.num(.3) },
+    InitialMessages = { 10, U.num(1, 200, true) },
+    LoadMoreCount = { 10, U.num(1, 200, true) },
     MaxMessages = { 60, U.num(10, 200, true) },
     MaxStored = { 300, U.num(20, nil, true) },
     MaxAge = { nil, U.num(0) },
@@ -18100,15 +18104,20 @@ function M.Attach(tab, Window, cfg)
     return s.CanvasPosition.Y + s.AbsoluteWindowSize.Y >= s.AbsoluteCanvasSize.Y - 60
   end
 
-  function chat.toBottom(smooth)
+  function chat.settle(fn)
     task.defer(function()
       RunService.Heartbeat:Wait()
-      if not (st.alive and ui.scroll.Parent) then return end
-      local to = Vector2.new(0, ui.scroll.AbsoluteCanvasSize.Y)
+      if st.alive and ui.scroll.Parent then fn(ui.scroll) end
+    end)
+  end
+
+  function chat.toBottom(smooth)
+    chat.settle(function(s)
+      local to = Vector2.new(0, s.AbsoluteCanvasSize.Y)
       if smooth then
-        U.tween(ui.scroll, .25, { CanvasPosition = to })
+        U.tween(s, .25, { CanvasPosition = to })
       else
-        ui.scroll.CanvasPosition = to
+        s.CanvasPosition = to
       end
     end)
   end
@@ -18167,14 +18176,19 @@ function M.Attach(tab, Window, cfg)
       local en = st.rows[key]
       if en then en.row.LayoutOrder = i end
     end
-    while #st.order > C.MaxMessages + 30 do chat.drop(st.order[1]) end
+    while not st.expanded and #st.order > math.max(C.MaxMessages, C.InitialMessages) + 30 do
+      chat.drop(st.order[1])
+      st.more = true
+    end
     chat.group()
     ui.empty.Visible = #st.order == 0 and chat.ready()
+    ui.more.Visible = st.more == true and #st.order > 0
   end
 
   function chat.clear()
     for key in pairs(st.rows) do chat.drop(key) end
-    ui.empty.Visible = chat.ready()
+    st.expanded = nil
+    chat.reindex()
   end
 
   function chat.copy(text)
@@ -18497,7 +18511,7 @@ function M.Attach(tab, Window, cfg)
       pending = pending == true,
       failed = false,
       mention = not mine and data.r ~= nil and chat.mine(data.r),
-      grace = U.grace(),
+      grace = pending == true and U.grace() or 0,
       caps = { chat.cap(), data.r and chat.cap() or nil },
     }
 
@@ -18641,8 +18655,9 @@ function M.Attach(tab, Window, cfg)
     return en
   end
 
-  function chat.process(snap)
+  function chat.process(snap, limit)
     local keys = U.keys(snap)
+    local fresh = #st.order == 0
     local stick = chat.atBottom()
     local own, incoming = false, 0
     local now = os.clock()
@@ -18653,7 +18668,7 @@ function M.Attach(tab, Window, cfg)
       if d and not st.tomb[key] and not chat.hasPending(key) then
         local en = st.rows[key]
         if not en then
-          chat.row(key, d, false).grace = 0
+          chat.row(key, d, false)
           if chat.mine(d) then
             own = true
           else
@@ -18670,7 +18685,7 @@ function M.Attach(tab, Window, cfg)
       end
     end
 
-    local lower = #keys >= C.MaxMessages and keys[1] or ""
+    local lower = #keys >= limit and keys[1] or ""
     for _, key in ipairs(table.clone(st.order)) do
       local en = st.rows[key]
       if en and key >= lower and snap[key] == nil and not en.pending and now >= en.grace and not chat.hasPending(key) then
@@ -18678,6 +18693,7 @@ function M.Attach(tab, Window, cfg)
       end
     end
 
+    if fresh then st.more = #keys >= limit end
     chat.reindex()
     chat.widths()
     if stick or own or not st.loaded then chat.toBottom(st.loaded == true) end
@@ -18685,13 +18701,54 @@ function M.Attach(tab, Window, cfg)
     st.loaded = true
   end
 
+  function chat.fetch(range)
+    local res = U.request("GET", st.ep .. "?orderBy=%22$key%22&" .. range)
+    return U.ok(res) and U.decode(res.Body), res
+  end
+
+  function chat.limit()
+    return math.max(C.InitialMessages, math.min(#st.order, C.MaxMessages))
+  end
+
+  function chat.prepend(data, from, count)
+    local keys = U.keys(data)
+    local s = ui.scroll
+    local height, y = s.AbsoluteCanvasSize.Y, s.CanvasPosition.Y
+    for _, key in ipairs(keys) do
+      local d = U.message(data[key])
+      if d and key < from and not st.tomb[key] and not st.rows[key] then chat.row(key, d, false) end
+    end
+    st.more = #keys > count
+    st.expanded = true
+    chat.reindex()
+    chat.widths()
+    chat.settle(function()
+      s.CanvasPosition = Vector2.new(0, y + s.AbsoluteCanvasSize.Y - height)
+    end)
+  end
+
+  function chat.older()
+    local from = st.order[1]
+    if st.loading or not (st.more and from) then return end
+    st.loading = true
+    ui.moreText.Text = S.Loading
+    local count = C.LoadMoreCount
+    local data = chat.fetch("endAt=%22" .. from .. "%22&limitToLast=" .. count + 1)
+    if data and st.alive then
+      local ok, err = pcall(chat.prepend, data, from, count)
+      if not ok then warn("[GeneralTab] load more failed:", err) end
+    end
+    st.loading = false
+    if st.alive then ui.moreText.Text = S.LoadMore end
+  end
+
   function chat.poll()
     if st.polling or not st.ep or not sys.http then return end
     st.polling = true
-    local res = U.request("GET", st.ep .. "?orderBy=%22$key%22&limitToLast=" .. C.MaxMessages)
-    local data = U.ok(res) and U.decode(res.Body)
+    local limit = chat.limit()
+    local data, res = chat.fetch("limitToLast=" .. limit)
     local ok, err = false, nil
-    if data then ok, err = pcall(chat.process, data) end
+    if data then ok, err = pcall(chat.process, data, limit) end
     if not ok and not st.warned then
       st.warned = true
       warn("[GeneralTab] poll failed:", err or (res and res.StatusCode) or "no response")
@@ -18868,6 +18925,30 @@ function M.Attach(tab, Window, cfg)
     U.pad(10, 10, 10, 12),
     New("UIListLayout", {}),
   })
+
+  ui.moreText = U.label({
+    Text = S.LoadMore,
+    AutomaticSize = "XY",
+    TextSize = 13,
+    Weight = "Medium",
+    ThemeTag = { TextColor3 = "Text" },
+  })
+
+  ui.moreBtn = Round(12, "Squircle", {
+    AnchorPoint = Vector2.new(.5, .5),
+    Position = UDim2.fromScale(.5, .5),
+    AutomaticSize = "XY",
+    Size = UDim2.new(),
+    ThemeTag = { ImageColor3 = "Text" },
+    ImageTransparency = .88,
+  }, { U.pad(6, 6, 14), ui.moreText }, true)
+
+  ui.more = U.box({
+    Size = UDim2.new(1, 0, 0, 40),
+    LayoutOrder = -1,
+    Visible = false,
+    Parent = ui.scroll,
+  }, { ui.moreBtn })
 
   ui.panel = U.glass(16, .94, .9, {
     Position = UDim2.new(0, 0, 0, D.Header + 6),
@@ -19082,6 +19163,8 @@ function M.Attach(tab, Window, cfg)
 
   U.press(ui.send, 0, .3)
   U.press(ui.menuBtn, 1, .85)
+  U.press(ui.moreBtn, .88, .7)
+  Creator.AddSignal(ui.moreBtn.MouseButton1Click, chat.older)
   Creator.AddSignal(ui.dim.MouseButton1Click, chat.closeLayer)
   Creator.AddSignal(ui.menuBtn.MouseButton1Click, function()
     chat.page "settings"
