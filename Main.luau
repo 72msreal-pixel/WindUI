@@ -17749,14 +17749,6 @@ function U.ok(res)
   return type(code) == "number" and code >= 200 and code < 300
 end
 
-function U.header(res, name)
-  local headers = res and res.Headers
-  if type(headers) ~= "table" then return end
-  for k, v in pairs(headers) do
-    if tostring(k):lower() == name then return v end
-  end
-end
-
 function U.request(method, url, body, headers)
   local opt = { Url = url, Method = method, Headers = headers or {} }
   if body then
@@ -18398,15 +18390,13 @@ function M.Attach(tab, Window, cfg)
   function chat.poll()
     if st.polling or not st.ep or not sys.http then return end
     st.polling = true
-    local headers = { ["X-Firebase-ETag"] = "true" }
-    if st.etag then headers["if-none-match"] = st.etag end
-    local res = U.request("GET", st.ep .. "?orderBy=%22$key%22&limitToLast=" .. C.MaxMessages, nil, headers)
-    local ok = res ~= nil and res.StatusCode == 304
-    local data = not ok and U.ok(res) and U.decode(res.Body)
-    if data then
-      st.etag = U.header(res, "etag") or st.etag
-      chat.process(data)
-      ok = true
+    local res = U.request("GET", st.ep .. "?orderBy=%22$key%22&limitToLast=" .. C.MaxMessages)
+    local data = U.ok(res) and U.decode(res.Body)
+    local ok, err = false, nil
+    if data then ok, err = pcall(chat.process, data) end
+    if not ok and not st.warned then
+      st.warned = true
+      warn("[GeneralTab] poll failed:", err or (res and res.StatusCode) or "no response")
     end
     chat.setStatus(ok)
     st.polling = false
@@ -18897,7 +18887,6 @@ function M.Attach(tab, Window, cfg)
   function api.Configure(_, t)
     if type(t) ~= "table" then return api end
     if chat.apply(t) then
-      st.etag = nil
       st.loaded = false
       st.link = "wait"
       st.force = true
