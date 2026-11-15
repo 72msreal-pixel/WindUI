@@ -7,7 +7,7 @@ print([[
   \__/\  / |__|___|  /\____ ||______/ |___|  |____|   |____/____//____  >
        \/          \/      \/                                         \/ 
                                                           
-             WindUI Plus - Version 0.0.7
+             WindUI Plus - Version 0.0.8
 ]])
 
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
@@ -2081,7 +2081,7 @@ New=a.i().New
 return[[
 {
     "name": "windui-plus",
-    "version": "v0.0.7",
+    "version": "v0.0.8",
     "main": "./dist/main.lua",
     "repository": "https://github.com/",
     "discord": "http://discord.gg/AxosHub",
@@ -16864,6 +16864,17 @@ az.Parent=ax.Content
 return an.New(az,ar)
 end
 
+function au.GeneralTab(ay,az)
+EnsureExpandable()
+az=az or{}
+az.Parent=ax.Content
+az.Icon=az.Icon or"message-circle"
+az.Title=az.Title or"Chat"
+local t=an.New(az,ar)
+a.GeneralTab().Attach(t,as,az)
+return t
+end
+
 function au.Label(ay,az)
 az=az or{}
 EnsureExpandable()
@@ -17588,7 +17599,1096 @@ end)
 return am
 end
 
-return ad end function a.an():typeof(__modImpl())local aa=a.cache.an if not aa then aa={c=__modImpl()}a.cache.an=aa end return aa.c end end do local function __modImpl()
+return ad end function a.an():typeof(__modImpl())local aa=a.cache.an if not aa then aa={c=__modImpl()}a.cache.an=aa end return aa.c end end
+do local function __modImpl()
+local Players = game:GetService "Players"
+local HttpService = game:GetService "HttpService"
+local RunService = game:GetService "RunService"
+
+local Creator = a.c()
+local New = Creator.New
+local Round = Creator.NewRoundFrame
+
+local M = {}
+local NULL = {}
+
+local sys = {
+  http = (syn and syn.request) or request or http_request or (http and http.request) or (fluxus and fluxus.request),
+  clip = setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set),
+}
+
+local U = {}
+
+function U.color(c, default)
+  if typeof(c) == "Color3" then return c end
+  local ok, res = pcall(Color3.fromHex, tostring(c))
+  return ok and res or default
+end
+
+function U.num(min, max, int)
+  return function(v, cur)
+    v = tonumber(v)
+    if not v then return cur end
+    return math.clamp(int and math.floor(v) or v, min, max or math.huge)
+  end
+end
+
+function U.flag(v)
+  return v ~= false
+end
+
+local D = {
+  Header = 30,
+  Input = 44,
+  Edit = 28,
+  Alias = { Url = "Link", Cooldown = "MessageDelay" },
+  Reload = { Url = true, Path = true },
+  State = {
+    wait = { Color3.fromRGB(245, 166, 35), "Connecting" },
+    on = { Color3.fromRGB(51, 199, 89), "Online" },
+    off = { Color3.fromRGB(235, 70, 70), "Offline" },
+  },
+  Strings = {
+    Title = "General Chat",
+    Placeholder = "Type a message...",
+    Copy = "Copy",
+    Edit = "Edit",
+    Delete = "Delete",
+    Copied = "Copied",
+    NoClipboard = "Your executor doesn't support clipboard",
+    Edited = "edited",
+    Today = "Today",
+    Yesterday = "Yesterday",
+    Online = "Online",
+    Offline = "Offline",
+    Connecting = "Connecting...",
+    Empty = "No messages yet. Be the first to say hi!",
+    Editing = "Editing message",
+    Cooldown = "Wait %.1fs before sending again",
+    Sending = "Sending...",
+    Failed = "Failed to send, retrying",
+    SetupTitle = "GeneralTab isn't configured",
+    SetupDesc = 'Add Url = "https://your-project-default-rtdb.firebasedatabase.app" to GeneralTab{...} to enable chat.',
+    NoHttp = "Your executor doesn't support request/http_request, so online chat is unavailable.",
+    SendText = "Send",
+  },
+  Options = {
+    Url = {},
+    Path = {},
+    Username = {},
+    OnMessage = {},
+    NameMode = { "Name" },
+    NameColor = { Color3.fromRGB(32, 99, 235), U.color },
+    Cooldown = { 2, U.num(0) },
+    PollInterval = { 2, U.num(.5) },
+    IdlePollInterval = { 10, U.num(1) },
+    BatchInterval = { 1.2, U.num(.3) },
+    MaxMessages = { 60, U.num(10, 200, true) },
+    MaxStored = { 300, U.num(20, nil, true) },
+    MaxAge = { nil, U.num(0) },
+    PruneInterval = { 180, U.num(30) },
+    MaxLength = { 200, U.num(10, 1000, true) },
+    AutoPrune = { true, U.flag },
+    AllowEdit = { true, U.flag },
+    AllowDelete = { true, U.flag },
+    AllowCopy = { true, U.flag },
+    ShowTime = { true, U.flag },
+  },
+}
+
+function U.cut(s, max)
+  s = tostring(s or "")
+  local len = utf8.len(s)
+  if not len then return s:sub(1, max) end
+  if len <= max then return s end
+  return s:sub(1, utf8.offset(s, max + 1) - 1)
+end
+
+function U.trim(s)
+  return (tostring(s or ""):match "^%s*(.-)%s*$")
+end
+
+function U.slashes(s)
+  return (tostring(s):gsub("^/+", ""):gsub("/+$", ""))
+end
+
+function U.merge(dst, src)
+  for k, v in pairs(src) do dst[k] = v end
+  return dst
+end
+
+function U.keys(t)
+  local list = {}
+  for k in pairs(t) do list[#list + 1] = k end
+  table.sort(list)
+  return list
+end
+
+function U.json(v)
+  return HttpService:JSONEncode({ v }):sub(2, -2)
+end
+
+function U.body(t)
+  local parts = {}
+  for path, v in pairs(t) do
+    parts[#parts + 1] = U.json(path) .. ":" .. (v == NULL and "null" or U.json(v))
+  end
+  return "{" .. table.concat(parts, ",") .. "}"
+end
+
+function U.decode(body)
+  local ok, data = pcall(HttpService.JSONDecode, HttpService, tostring(body))
+  if not ok then return nil end
+  if data == nil then return {} end
+  if type(data) == "table" and not data.error then return data end
+end
+
+function U.ok(res)
+  local code = res and res.StatusCode
+  return type(code) == "number" and code >= 200 and code < 300
+end
+
+function U.header(res, name)
+  local headers = res and res.Headers
+  if type(headers) ~= "table" then return end
+  for k, v in pairs(headers) do
+    if tostring(k):lower() == name then return v end
+  end
+end
+
+function U.request(method, url, body, headers)
+  local opt = { Url = url, Method = method, Headers = headers or {} }
+  if body then
+    opt.Body = body
+    opt.Headers["Content-Type"] = "application/json"
+  end
+  local ok, res = pcall(sys.http, opt)
+  if ok then return res end
+end
+
+function U.grace()
+  return os.clock() + 6
+end
+
+function U.sameDay(x, y)
+  return x.year == y.year and x.yday == y.yday
+end
+
+function U.time(t, S)
+  if type(t) ~= "number" then return "" end
+  local d = os.date("*t", t)
+  local hm = string.format("%02d:%02d", d.hour, d.min)
+  if U.sameDay(d, os.date "*t") then return S.Today .. " " .. hm end
+  if U.sameDay(d, os.date("*t", os.time() - 86400)) then return S.Yesterday .. " " .. hm end
+  return string.format("%d/%d/%d %s", d.day, d.month, d.year, hm)
+end
+
+function U.message(v)
+  if type(v) ~= "table" then return end
+  local m = v.m or v.msg
+  if type(m) ~= "string" or m == "" then return end
+  return { n = tostring(v.n or v.name or "?"), i = tonumber(v.i), m = m, t = tonumber(v.t), e = tonumber(v.e) }
+end
+
+function U.font(weight)
+  return Font.new(Creator.Font, Enum.FontWeight[weight or "Regular"])
+end
+
+function U.plain(props)
+  props.BackgroundTransparency = 1
+  if props.AutomaticSize and not props.Size then props.Size = UDim2.new() end
+  return props
+end
+
+function U.box(props, children)
+  return New("Frame", U.plain(props), children)
+end
+
+function U.label(props, children)
+  props.FontFace = U.font(props.Weight)
+  props.Weight = nil
+  return New("TextLabel", U.plain(props), children)
+end
+
+function U.pad(top, bottom, left, right)
+  return New("UIPadding", {
+    PaddingTop = UDim.new(0, top),
+    PaddingBottom = UDim.new(0, bottom or top),
+    PaddingLeft = UDim.new(0, left or top),
+    PaddingRight = UDim.new(0, right or left or top),
+  })
+end
+
+function U.glass(radius, fill, line, props, children)
+  props.ThemeTag = { ImageColor3 = "Text" }
+  props.ImageTransparency = fill
+  children = children or {}
+  children[#children + 1] = Round(radius, "Glass-1.4", {
+    Name = "Outline",
+    Size = UDim2.fromScale(1, 1),
+    ThemeTag = { ImageColor3 = "White" },
+    ImageTransparency = line,
+  })
+  return Round(radius, "Squircle", props, children)
+end
+
+function U.icon(name, size)
+  local ok, res = pcall(Creator.Icon, name)
+  if not (ok and res and res[1]) then return end
+  return New("ImageLabel", {
+    Size = UDim2.fromOffset(size, size),
+    Image = res[1],
+    ImageRectOffset = res[2].ImageRectPosition,
+    ImageRectSize = res[2].ImageRectSize,
+    AnchorPoint = Vector2.new(.5, .5),
+    Position = UDim2.fromScale(.5, .5),
+    ThemeTag = { ImageColor3 = "White" },
+  })
+end
+
+function M.Attach(tab, Window, cfg)
+  local S = U.merge({}, D.Strings)
+  local C = {}
+  for key, opt in pairs(D.Options) do C[key] = opt[1] end
+
+  local st = {
+    player = Players.LocalPlayer,
+    title = tab.Title or "Chat",
+    rows = {},
+    order = {},
+    pending = {},
+    tomb = {},
+    unread = 0,
+    lastSend = 0,
+    fails = 0,
+    counter = 0,
+    flashId = 0,
+    seq = math.random(0, 255),
+    link = "wait",
+    alive = true,
+    force = true,
+  }
+
+  local ui = {}
+  local chat = {}
+
+  function chat.apply(src)
+    local reload = false
+    for key, opt in pairs(D.Options) do
+      local v = src[key]
+      if v == nil and D.Alias[key] then v = src[D.Alias[key]] end
+      if v ~= nil then
+        if opt[2] then v = opt[2](v, C[key]) end
+        C[key] = v
+        reload = reload or D.Reload[key] == true
+      end
+    end
+    if type(src.Strings) == "table" then U.merge(S, src.Strings) end
+    if src.NameColor ~= nil then
+      for _, en in pairs(st.rows) do
+        if en.nameLabel then en.nameLabel.TextColor3 = C.NameColor end
+      end
+    end
+    st.ep = chat.endpoint()
+    return reload
+  end
+
+  function chat.endpoint()
+    local url = tostring(C.Url or ""):gsub("%s", ""):gsub("%?.*$", ""):gsub("%.json$", "")
+    local host, rest = U.slashes(url):match "^(https?://[^/]+)/?(.*)$"
+    if not host then return end
+    local path = U.slashes(C.Path or "")
+    if path == "" then path = rest ~= "" and rest or "chat" end
+    return host .. "/" .. path .. ".json"
+  end
+
+  function chat.ready()
+    return st.ep ~= nil and sys.http ~= nil
+  end
+
+  function chat.active()
+    return tab.Selected == true and not Window.Closed
+  end
+
+  function chat.name()
+    local u = C.Username
+    if type(u) == "function" then
+      local ok, res = pcall(u)
+      if ok and res then return tostring(res) end
+    elseif type(u) == "string" and u ~= "" then
+      return u
+    end
+    return C.NameMode == "DisplayName" and st.player.DisplayName or st.player.Name
+  end
+
+  function chat.mine(d)
+    if d.i then return d.i == st.player.UserId end
+    return d.n == chat.name()
+  end
+
+  function chat.status()
+    local s = D.State[st.link]
+    ui.dot.BackgroundColor3 = s[1]
+    ui.status.Text = S[s[2]]
+  end
+
+  function chat.setStatus(ok)
+    st.link = ok and "on" or "off"
+    if ok then st.fails = 0 end
+    chat.status()
+  end
+
+  function chat.flash(text)
+    st.flashId += 1
+    local id = st.flashId
+    ui.status.Text = text
+    task.delay(1.8, function()
+      if st.alive and st.flashId == id then chat.status() end
+    end)
+  end
+
+  function chat.setup()
+    local noHttp = sys.http == nil
+    ui.setupTitle.Text = noHttp and S.NoHttp or S.SetupTitle
+    ui.setupDesc.Text = S.SetupDesc
+    ui.setupDesc.Visible = not noHttp
+    ui.setup.Visible = not chat.ready()
+    if ui.setup.Visible then ui.empty.Visible = false end
+  end
+
+  function chat.layout()
+    local h = D.Input + (st.editing and D.Edit or 0)
+    ui.bottom.Size = UDim2.new(1, 0, 0, h)
+    ui.panel.Size = UDim2.new(1, 0, 1, -(D.Header + 6 + h + 8))
+    ui.editBar.Visible = st.editing ~= nil
+  end
+
+  function chat.atBottom()
+    local s = ui.scroll
+    return s.CanvasPosition.Y + s.AbsoluteWindowSize.Y >= s.AbsoluteCanvasSize.Y - 60
+  end
+
+  function chat.toBottom()
+    task.defer(function()
+      RunService.Heartbeat:Wait()
+      if st.alive and ui.scroll.Parent then
+        ui.scroll.CanvasPosition = Vector2.new(0, ui.scroll.AbsoluteCanvasSize.Y)
+      end
+    end)
+  end
+
+  function chat.maxWidth()
+    local scale = ui.probe.AbsoluteSize.X / 100
+    if scale <= 0 then scale = 1 end
+    local w = ui.scroll.AbsoluteWindowSize.X / scale
+    return math.max(110, (w > 0 and w or 300) * .78 - 46)
+  end
+
+  function chat.widths()
+    local size = Vector2.new(chat.maxWidth(), math.huge)
+    for _, en in pairs(st.rows) do en.limit.MaxSize = size end
+  end
+
+  function chat.meta(en)
+    local parts = {}
+    if en.failed then
+      parts[1] = S.Failed
+    else
+      if C.ShowTime and en.data.t then parts[#parts + 1] = U.time(en.data.t, S) end
+      if en.data.e then parts[#parts + 1] = S.Edited end
+      if en.pending then parts[#parts + 1] = S.Sending end
+    end
+    en.meta.Text = table.concat(parts, " · ")
+    en.meta.Visible = #parts > 0
+    en.msg.TextTransparency = en.pending and .35 or 0
+  end
+
+  function chat.update(en)
+    en.msg.Text = en.data.m
+    if en.nameLabel then en.nameLabel.Text = en.data.n end
+    chat.meta(en)
+  end
+
+  function chat.drop(key)
+    local en = st.rows[key]
+    if en then
+      if st.open == en.actions then st.open = nil end
+      en.row:Destroy()
+      st.rows[key] = nil
+    end
+    local i = table.find(st.order, key)
+    if i then table.remove(st.order, i) end
+  end
+
+  function chat.reindex()
+    table.sort(st.order)
+    for i, key in ipairs(st.order) do
+      local en = st.rows[key]
+      if en then en.row.LayoutOrder = i end
+    end
+    while #st.order > C.MaxMessages + 30 do chat.drop(st.order[1]) end
+    ui.empty.Visible = #st.order == 0 and chat.ready()
+  end
+
+  function chat.clear()
+    for key in pairs(st.rows) do chat.drop(key) end
+    ui.empty.Visible = chat.ready()
+  end
+
+  function chat.copy(text)
+    local ok = sys.clip and pcall(sys.clip, text)
+    chat.flash(ok and S.Copied or S.NoClipboard)
+  end
+
+  function chat.edit(key)
+    local en = st.rows[key]
+    if not en then return end
+    st.editing = key
+    ui.input.Text = en.data.m
+    chat.layout()
+    ui.input:CaptureFocus()
+  end
+
+  function chat.cancelEdit()
+    st.editing = nil
+    ui.input.Text = ""
+    chat.layout()
+  end
+
+  function chat.hasPending(key)
+    return st.pending[key] ~= nil or st.pending[key .. "/m"] ~= nil
+  end
+
+  function chat.delete(key)
+    if not st.rows[key] then return end
+    local unsent = type(st.pending[key]) == "table"
+    st.pending[key .. "/m"] = nil
+    st.pending[key .. "/e"] = nil
+    st.pending[key] = not unsent and NULL or nil
+    st.tomb[key] = os.clock() + 10
+    if st.editing == key then chat.cancelEdit() end
+    chat.drop(key)
+    chat.reindex()
+  end
+
+  function chat.setUnread(n)
+    st.unread = n
+    local main = tab.UIElements.Main
+    local label = main and main.Frame and main.Frame:FindFirstChildOfClass "TextLabel"
+    if label then
+      label.Text = n > 0 and string.format("%s (%s)", st.title, n > 99 and "99+" or n) or st.title
+    end
+  end
+
+  function chat.action(parent, text, order, callback, color)
+    local btn = Round(8, "Squircle", {
+      AutomaticSize = "XY",
+      Size = UDim2.new(),
+      LayoutOrder = order,
+      ThemeTag = { ImageColor3 = "Text" },
+      ImageTransparency = .86,
+      Parent = parent,
+    }, {
+      U.pad(4, 4, 9),
+      U.label({
+        Text = text,
+        AutomaticSize = "XY",
+        TextSize = 12,
+        TextTransparency = color and 0 or .1,
+        TextColor3 = color,
+        Weight = "Medium",
+        ThemeTag = not color and { TextColor3 = "Text" } or nil,
+      }),
+    }, true)
+    Creator.AddSignal(btn.MouseButton1Click, callback)
+  end
+
+  function chat.row(key, data, pending)
+    local mine = chat.mine(data)
+    local align = mine and "Right" or "Left"
+    local en = {
+      key = key,
+      data = data,
+      pending = pending == true,
+      failed = false,
+      grace = U.grace(),
+      limit = New("UISizeConstraint", { MaxSize = Vector2.new(chat.maxWidth(), math.huge) }),
+    }
+
+    en.msg = U.label({
+      Text = data.m,
+      TextWrapped = true,
+      AutomaticSize = "XY",
+      TextSize = 15,
+      TextXAlignment = "Left",
+      LayoutOrder = 1,
+      ThemeTag = { TextColor3 = "Text" },
+    }, { en.limit })
+
+    en.meta = U.label({
+      AutomaticSize = "XY",
+      TextSize = 11,
+      TextTransparency = .5,
+      TextXAlignment = align,
+      LayoutOrder = 2,
+      ThemeTag = { TextColor3 = "Text" },
+    })
+
+    en.bubble = Round(16, "Squircle", {
+      AutomaticSize = "XY",
+      Size = UDim2.new(),
+      LayoutOrder = 2,
+      ThemeTag = { ImageColor3 = mine and "Primary" or "Text" },
+      ImageTransparency = mine and .7 or .9,
+    }, {
+      New("UIListLayout", { Padding = UDim.new(0, 2), HorizontalAlignment = align }),
+      U.pad(7, 6, 12),
+      en.msg,
+      en.meta,
+    }, true)
+
+    en.actions = U.box({ Visible = false, AutomaticSize = "XY", LayoutOrder = 3 }, {
+      New("UIListLayout", { FillDirection = "Horizontal", HorizontalAlignment = align, Padding = UDim.new(0, 6) }),
+    })
+
+    if not mine then
+      en.nameLabel = U.label({
+        Text = data.n,
+        AutomaticSize = "XY",
+        TextSize = 13,
+        TextColor3 = C.NameColor,
+        LayoutOrder = 1,
+        Weight = "SemiBold",
+      }, { U.pad(0, 0, 4, 0) })
+    end
+
+    en.row = U.box({ Name = key, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = "Y", Parent = ui.scroll }, {
+      New("UIListLayout", { FillDirection = "Horizontal", HorizontalAlignment = align }),
+      U.box({ AutomaticSize = "XY" }, {
+        New("UIListLayout", { HorizontalAlignment = align, Padding = UDim.new(0, 3) }),
+        en.nameLabel,
+        en.bubble,
+        en.actions,
+      }),
+    })
+
+    st.rows[key] = en
+    st.order[#st.order + 1] = key
+
+    local buttons = {
+      { "Copy", C.AllowCopy, function() chat.copy(en.data.m) end },
+      { "Edit", mine and C.AllowEdit, function()
+        en.actions.Visible = false
+        st.open = nil
+        chat.edit(key)
+      end },
+      { "Delete", mine and C.AllowDelete, function() chat.delete(key) end, Color3.fromRGB(240, 90, 90) },
+    }
+    for i, b in ipairs(buttons) do
+      if b[2] then chat.action(en.actions, S[b[1]], i, b[3], b[4]) end
+    end
+
+    Creator.AddSignal(en.bubble.MouseButton1Click, function()
+      if st.open and st.open ~= en.actions then st.open.Visible = false end
+      en.actions.Visible = not en.actions.Visible
+      st.open = en.actions.Visible and en.actions or nil
+    end)
+
+    chat.meta(en)
+    return en
+  end
+
+  function chat.process(snap)
+    local keys = U.keys(snap)
+    local stick = chat.atBottom()
+    local own, incoming = false, 0
+    local now = os.clock()
+
+    for _, key in ipairs(keys) do
+      local d = U.message(snap[key])
+      if st.tomb[key] and st.tomb[key] <= now then st.tomb[key] = nil end
+      if d and not st.tomb[key] and not chat.hasPending(key) then
+        local en = st.rows[key]
+        if not en then
+          chat.row(key, d, false).grace = 0
+          if chat.mine(d) then
+            own = true
+          else
+            incoming += 1
+            if st.loaded and C.OnMessage then task.spawn(pcall, C.OnMessage, d, key) end
+          end
+        elseif now >= en.grace then
+          local old = en.data
+          if old.m ~= d.m or old.e ~= d.e or old.n ~= d.n or old.t ~= d.t then
+            en.data = d
+            chat.update(en)
+          end
+        end
+      end
+    end
+
+    local lower = #keys >= C.MaxMessages and keys[1] or ""
+    for _, key in ipairs(table.clone(st.order)) do
+      local en = st.rows[key]
+      if en and key >= lower and snap[key] == nil and not en.pending and now >= en.grace and not chat.hasPending(key) then
+        chat.drop(key)
+      end
+    end
+
+    chat.reindex()
+    chat.widths()
+    if stick or own or not st.loaded then chat.toBottom() end
+    if st.loaded and incoming > 0 and not chat.active() then chat.setUnread(st.unread + incoming) end
+    st.loaded = true
+  end
+
+  function chat.poll()
+    if st.polling or not st.ep or not sys.http then return end
+    st.polling = true
+    local headers = { ["X-Firebase-ETag"] = "true" }
+    if st.etag then headers["if-none-match"] = st.etag end
+    local res = U.request("GET", st.ep .. "?orderBy=%22$key%22&limitToLast=" .. C.MaxMessages, nil, headers)
+    local ok = res ~= nil and res.StatusCode == 304
+    local data = not ok and U.ok(res) and U.decode(res.Body)
+    if data then
+      st.etag = U.header(res, "etag") or st.etag
+      chat.process(data)
+      ok = true
+    end
+    chat.setStatus(ok)
+    st.polling = false
+  end
+
+  function chat.flush()
+    if st.flushing or not st.ep or next(st.pending) == nil then return end
+    st.flushing = true
+    local body = st.pending
+    st.pending = {}
+    local ok = U.ok(U.request("PATCH", st.ep, U.body(body)))
+    for path, v in pairs(body) do
+      if not ok and st.pending[path] == nil then st.pending[path] = v end
+      local en = st.rows[path:match "^[^/]+"]
+      if en then
+        en.pending = not ok
+        en.failed = not ok
+        if ok then en.grace = U.grace() end
+        chat.meta(en)
+      end
+    end
+    if ok then st.force = true else st.fails += 1 end
+    chat.setStatus(ok)
+    st.flushing = false
+  end
+
+  function chat.prune()
+    if not C.AutoPrune or not st.ep then return end
+    local res = U.request("GET", st.ep .. "?shallow=true")
+    local data = U.ok(res) and U.decode(res.Body)
+    if not data then return end
+    local drop, keep = {}, {}
+    local now = os.time()
+    for _, key in ipairs(U.keys(data)) do
+      local ts = #key >= 10 and tonumber(key:sub(1, 10))
+      if C.MaxAge and ts and now - ts > C.MaxAge then
+        drop[key] = NULL
+      else
+        keep[#keep + 1] = key
+      end
+    end
+    if #keep > C.MaxStored then
+      for i = 1, #keep - math.floor(C.MaxStored * .8) do drop[keep[i]] = NULL end
+    end
+    if next(drop) then
+      U.request("PATCH", st.ep, U.body(drop))
+      st.force = true
+    end
+  end
+
+  function chat.send(text)
+    text = U.cut(U.trim(text), C.MaxLength)
+    if text == "" then return false end
+    if not chat.ready() then
+      chat.setup()
+      chat.flash(sys.http and S.SetupTitle or S.NoHttp)
+      return false
+    end
+
+    if st.editing then
+      local key = st.editing
+      local en = st.rows[key]
+      if en and text ~= en.data.m then
+        local now = os.time()
+        en.data.m = text
+        en.data.e = now
+        en.pending = true
+        en.failed = false
+        en.grace = U.grace()
+        local queued = st.pending[key]
+        if type(queued) == "table" then
+          queued.m = text
+          queued.e = now
+        else
+          st.pending[key .. "/m"] = text
+          st.pending[key .. "/e"] = now
+        end
+        chat.update(en)
+      end
+      chat.cancelEdit()
+      return true
+    end
+
+    local wait = st.lastSend + C.Cooldown - os.clock()
+    if wait > 0 then
+      chat.flash(string.format(S.Cooldown, wait))
+      return false
+    end
+
+    st.lastSend = os.clock()
+    st.counter += 1
+    local id = st.player.UserId
+    local key = string.format("%010d%06x%02x%04x", os.time(), id % 0x1000000, st.seq, st.counter % 0x10000)
+    local data = { n = chat.name(), i = id, m = text, t = os.time() }
+    st.pending[key] = table.clone(data)
+    chat.row(key, data, true)
+    chat.reindex()
+    chat.widths()
+    chat.toBottom()
+    return true
+  end
+
+  function chat.submit()
+    if chat.send(ui.input.Text) and not st.editing then ui.input.Text = "" end
+  end
+
+  chat.apply(cfg or {})
+
+  tab.UIElements.ContainerFrame.Visible = false
+
+  ui.root = U.box({
+    Name = "GeneralTab",
+    Size = UDim2.new(1, 0, 1, -(tab.ShowTabTitle and (Window.UIPadding * 2.4) + 12 or 0)),
+    AnchorPoint = Vector2.new(0, 1),
+    Position = UDim2.fromScale(0, 1),
+    Parent = tab.UIElements.ContainerFrameCanvas,
+  }, { U.pad(Window.HidePanelBackground and 10 or 20) })
+
+  ui.probe = U.box({ Size = UDim2.fromOffset(100, 0), Parent = ui.root })
+
+  ui.dot = New("Frame", {
+    Size = UDim2.fromOffset(8, 8),
+    LayoutOrder = 1,
+  }, { New("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+
+  ui.status = U.label({
+    AutomaticSize = "XY",
+    TextSize = 12,
+    TextTransparency = .35,
+    LayoutOrder = 2,
+    ThemeTag = { TextColor3 = "Text" },
+  })
+
+  U.box({ Size = UDim2.new(1, 0, 0, D.Header), Parent = ui.root }, {
+    not tab.ShowTabTitle and U.label({
+      Text = S.Title,
+      AnchorPoint = Vector2.new(0, .5),
+      Position = UDim2.new(0, 2, .5, 0),
+      Size = UDim2.new(.6, 0, 1, 0),
+      TextSize = 17,
+      TextXAlignment = "Left",
+      TextTruncate = "AtEnd",
+      Weight = "SemiBold",
+      ThemeTag = { TextColor3 = "Text" },
+    }) or nil,
+    U.box({
+      AnchorPoint = Vector2.new(1, .5),
+      Position = UDim2.fromScale(1, .5),
+      AutomaticSize = "XY",
+    }, {
+      New("UIListLayout", { FillDirection = "Horizontal", VerticalAlignment = "Center", Padding = UDim.new(0, 6) }),
+      ui.dot,
+      ui.status,
+    }),
+  })
+
+  ui.scroll = New("ScrollingFrame", {
+    Size = UDim2.fromScale(1, 1),
+    BackgroundTransparency = 1,
+    ScrollBarThickness = 3,
+    ScrollBarImageTransparency = .5,
+    ElasticBehavior = "Never",
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = "Y",
+    ScrollingDirection = "Y",
+    ClipsDescendants = true,
+  }, {
+    U.pad(10, 10, 10, 12),
+    New("UIListLayout", { Padding = UDim.new(0, 8) }),
+  })
+
+  ui.panel = U.glass(16, .94, .9, {
+    Position = UDim2.new(0, 0, 0, D.Header + 6),
+    Parent = ui.root,
+  }, { ui.scroll })
+
+  ui.empty = U.label({
+    Text = S.Empty,
+    TextWrapped = true,
+    AnchorPoint = Vector2.new(.5, .5),
+    Position = UDim2.fromScale(.5, .5),
+    Size = UDim2.new(1, -60, 0, 0),
+    AutomaticSize = "Y",
+    TextSize = 14,
+    TextTransparency = .55,
+    ZIndex = 2,
+    ThemeTag = { TextColor3 = "Text" },
+    Parent = ui.panel,
+  })
+
+  ui.setupTitle = U.label({
+    AutomaticSize = "XY",
+    TextSize = 17,
+    LayoutOrder = 1,
+    Weight = "SemiBold",
+    ThemeTag = { TextColor3 = "Text" },
+  })
+
+  ui.setupDesc = U.label({
+    TextWrapped = true,
+    Size = UDim2.new(1, -50, 0, 0),
+    AutomaticSize = "Y",
+    TextSize = 13,
+    TextTransparency = .45,
+    LayoutOrder = 2,
+    ThemeTag = { TextColor3 = "Text" },
+  })
+
+  ui.setup = U.box({
+    Size = UDim2.fromScale(1, 1),
+    ZIndex = 3,
+    Visible = false,
+    Parent = ui.panel,
+  }, {
+    New("UIListLayout", { HorizontalAlignment = "Center", VerticalAlignment = "Center", Padding = UDim.new(0, 6) }),
+    ui.setupTitle,
+    ui.setupDesc,
+  })
+
+  ui.bottom = U.box({
+    AnchorPoint = Vector2.new(0, 1),
+    Position = UDim2.fromScale(0, 1),
+    Parent = ui.root,
+  })
+
+  ui.close = Round(8, "Squircle", {
+    AnchorPoint = Vector2.new(1, .5),
+    Position = UDim2.new(1, -6, .5, 0),
+    Size = UDim2.fromOffset(22, 18),
+    ThemeTag = { ImageColor3 = "Text" },
+    ImageTransparency = .85,
+  }, {
+    U.label({ Text = "✕", Size = UDim2.fromScale(1, 1), TextSize = 12, ThemeTag = { TextColor3 = "Text" } }),
+  }, true)
+
+  ui.editBar = Round(10, "Squircle", {
+    Size = UDim2.new(1, 0, 0, D.Edit - 4),
+    Visible = false,
+    ThemeTag = { ImageColor3 = "Primary" },
+    ImageTransparency = .75,
+    Parent = ui.bottom,
+  }, {
+    U.label({
+      Text = S.Editing,
+      Position = UDim2.fromOffset(12, 0),
+      Size = UDim2.new(1, -50, 1, 0),
+      TextSize = 13,
+      TextXAlignment = "Left",
+      Weight = "Medium",
+      ThemeTag = { TextColor3 = "Text" },
+    }),
+    ui.close,
+  })
+
+  ui.input = New("TextBox", {
+    Size = UDim2.new(1, -28, 1, 0),
+    Position = UDim2.fromOffset(14, 0),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    PlaceholderText = S.Placeholder,
+    ClipsDescendants = true,
+    TextSize = 15,
+    TextXAlignment = "Left",
+    FontFace = U.font(),
+    ThemeTag = { TextColor3 = "Text", PlaceholderColor3 = "Placeholder" },
+  })
+
+  ui.send = Round(14, "Squircle", {
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.fromScale(1, 0),
+    Size = UDim2.fromOffset(D.Input, D.Input),
+    ThemeTag = { ImageColor3 = "Primary" },
+  }, {
+    U.icon("send", 20) or U.label({
+      Text = S.SendText,
+      Size = UDim2.fromScale(1, 1),
+      TextSize = 14,
+      Weight = "SemiBold",
+      ThemeTag = { TextColor3 = "White" },
+    }),
+  }, true)
+
+  U.box({
+    AnchorPoint = Vector2.new(0, 1),
+    Position = UDim2.fromScale(0, 1),
+    Size = UDim2.new(1, 0, 0, D.Input),
+    Parent = ui.bottom,
+  }, {
+    U.glass(14, .92, .88, { Size = UDim2.new(1, -(D.Input + 8), 1, 0) }, { ui.input }),
+    ui.send,
+  })
+
+  Creator.AddSignal(ui.send.MouseButton1Click, function()
+    chat.submit()
+    ui.input:CaptureFocus()
+  end)
+
+  Creator.AddSignal(ui.input.FocusLost, function(enter)
+    if not enter then return end
+    chat.submit()
+    task.defer(function()
+      if st.alive then ui.input:CaptureFocus() end
+    end)
+  end)
+
+  Creator.AddSignal(ui.input:GetPropertyChangedSignal "Text", function()
+    if st.clamping then return end
+    local len = utf8.len(ui.input.Text)
+    if len and len > C.MaxLength then
+      st.clamping = true
+      ui.input.Text = U.cut(ui.input.Text, C.MaxLength)
+      st.clamping = false
+    end
+  end)
+
+  Creator.AddSignal(ui.close.MouseButton1Click, chat.cancelEdit)
+  Creator.AddSignal(ui.scroll:GetPropertyChangedSignal "AbsoluteWindowSize", chat.widths)
+
+  ui.root.Destroying:Connect(function()
+    st.alive = false
+  end)
+
+  task.spawn(function()
+    local loop = { poll = 0, flush = 0, prune = os.clock() + math.random(20, 60), active = false }
+    while st.alive do
+      task.wait(.25)
+      if not st.alive then break end
+
+      local active = chat.active()
+      if active and not loop.active then
+        if st.unread > 0 then chat.setUnread(0) end
+        st.force = true
+        chat.toBottom()
+      end
+      loop.active = active
+
+      if chat.ready() then
+        local now = os.clock()
+        local every = active and C.PollInterval or C.IdlePollInterval
+        if st.link == "off" then every = math.max(every, 5) end
+        if (st.force or now - loop.poll >= every) and not st.polling then
+          st.force = false
+          loop.poll = now
+          task.spawn(chat.poll)
+        end
+
+        local batch = st.fails >= 3 and math.max(C.BatchInterval, 6) or C.BatchInterval
+        if now - loop.flush >= batch and next(st.pending) ~= nil and not st.flushing then
+          loop.flush = now
+          task.spawn(chat.flush)
+        end
+
+        if now >= loop.prune then
+          loop.prune = now + C.PruneInterval
+          task.spawn(chat.prune)
+        end
+      end
+    end
+  end)
+
+  local api = { Config = C, Strings = S }
+
+  function api.Send(_, text)
+    return chat.send(text)
+  end
+
+  function api.Refresh(_)
+    st.force = true
+  end
+
+  function api.Clear(_)
+    chat.clear()
+  end
+
+  function api.GetMessages(_)
+    local list = {}
+    table.sort(st.order)
+    for _, key in ipairs(st.order) do
+      local en = st.rows[key]
+      if en then
+        list[#list + 1] = {
+          Key = key,
+          Name = en.data.n,
+          UserId = en.data.i,
+          Text = en.data.m,
+          Time = en.data.t,
+          Edited = en.data.e,
+        }
+      end
+    end
+    return list
+  end
+
+  function api.SetNameColor(_, color)
+    return api:Configure { NameColor = color }
+  end
+
+  function api.Configure(_, t)
+    if type(t) ~= "table" then return api end
+    if chat.apply(t) then
+      st.etag = nil
+      st.loaded = false
+      st.link = "wait"
+      st.force = true
+      chat.clear()
+    end
+    chat.status()
+    chat.setup()
+    return api
+  end
+
+  function api.Destroy(_)
+    st.alive = false
+    ui.root:Destroy()
+  end
+
+  tab.Chat = api
+
+  function tab.SendMessage(_, text)
+    return chat.send(text)
+  end
+
+  function tab.ConfigureChat(_, t)
+    return api:Configure(t)
+  end
+
+  chat.layout()
+  chat.setup()
+  chat.status()
+  return api
+end
+
+return M end function a.GeneralTab():typeof(__modImpl())local b=a.cache.GeneralTab if not b then b={c=__modImpl()}a.cache.GeneralTab=b end return b.c end end
+
+do local function __modImpl()
 local aa=(cloneref or clonereference or function(aa)return aa end)
 
 local ad=aa(game:GetService"UserInputService")
@@ -19746,6 +20846,16 @@ J.Parent=av.UIElements.SideBar.Frame
 return G.New(J,au.WindUI.UIScale)
 end
 
+function av.GeneralTab(H,J)
+J=J or{}
+J.Parent=av.UIElements.SideBar.Frame
+J.Icon=J.Icon or"message-circle"
+J.Title=J.Title or"Chat"
+local L=G.New(J,au.WindUI.UIScale)
+a.GeneralTab().Attach(L,av,J)
+return L
+end
+
 function av.SelectTab(H,J)
 return G:SelectTab(J)
 end
@@ -20312,7 +21422,7 @@ TransparencyValue=0.15,
 UIScale=1,
 
 ConfigManager=nil,
-Version="0.0.7",
+Version="0.0.8",
 
 Services=a.j(),
 
