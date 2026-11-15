@@ -7,7 +7,7 @@ print([[
   \__/\  / |__|___|  /\____ ||______/ |___|  |____|   |____/____//____  >
        \/          \/      \/                                         \/ 
                                                           
-             WindUI Plus - Version 0.0.9
+             WindUI Plus - Version 0.0.8
 ]])
 
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
@@ -2081,7 +2081,7 @@ New=a.i().New
 return[[
 {
     "name": "windui-plus",
-    "version": "v0.0.9",
+    "version": "v0.0.8",
     "main": "./dist/main.lua",
     "repository": "https://github.com/",
     "discord": "http://discord.gg/AxosHub",
@@ -17648,6 +17648,16 @@ function U.names(v)
   return set
 end
 
+function U.words(v)
+  local list = {}
+  if type(v) ~= "table" then return list end
+  for _, word in pairs(v) do
+    word = U.trim(word):lower()
+    if word ~= "" then list[#list + 1] = word end
+  end
+  return list
+end
+
 local D = {
   Header = 30,
   Input = 44,
@@ -17687,6 +17697,8 @@ local D = {
     Gone = "Original message not found",
     LoadMore = "Load older messages",
     Loading = "Loading...",
+    Warning = "Message blocked: blacklisted word. Do it again and you will be kicked",
+    Kick = "Kicked for using blacklisted words in chat",
     Rainbow = "Rainbow name when anonymous",
     RainbowDesc = "Admin only. Your real ID is sent with your messages so the rainbow name stays",
   },
@@ -17698,6 +17710,7 @@ local D = {
     NameMode = { "Name" },
     NameColor = { Color3.fromRGB(32, 99, 235), U.color },
     AdminList = { {}, U.names },
+    Blacklist = { {}, U.words },
     Cooldown = { 2, U.num(0) },
     LayoutOrder = { nil, U.num(-2147483648, 2147483647, true) },
     PollInterval = { 2, U.num(.5) },
@@ -17927,6 +17940,7 @@ function M.Attach(tab, Window, cfg)
     pending = {},
     tomb = {},
     names = {},
+    strikes = {},
     unread = 0,
     lastSend = 0,
     fails = 0,
@@ -18001,6 +18015,7 @@ function M.Attach(tab, Window, cfg)
     if data.anonymous ~= nil then C.Anonymous = data.anonymous == true end
     if data.rainbow ~= nil then C.AdminRainbow = data.rainbow == true end
     st.anonId = tonumber(data.anonId)
+    st.strikes = type(data.strikes) == "table" and data.strikes or {}
   end
 
   function chat.save()
@@ -18008,7 +18023,7 @@ function M.Attach(tab, Window, cfg)
     pcall(function()
       local dir = C.ConfigFile:match "^(.+)/[^/]+$"
       if dir and makefolder and not isfolder(dir) then makefolder(dir) end
-      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, rainbow = C.AdminRainbow, anonId = st.anonId })
+      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, rainbow = C.AdminRainbow, anonId = st.anonId, strikes = st.strikes })
     end)
   end
 
@@ -18091,6 +18106,23 @@ function M.Attach(tab, Window, cfg)
 
   function chat.wait()
     return math.max(0, st.lastSend + C.Cooldown - os.clock())
+  end
+
+  function chat.banned(text)
+    local low = text:lower()
+    for _, word in ipairs(C.Blacklist) do
+      if low:find(word, 1, true) then return word end
+    end
+  end
+
+  function chat.strike(word)
+    st.strikes[word] = (st.strikes[word] or 0) + 1
+    chat.save()
+    if st.strikes[word] >= 2 then
+      st.player:Kick(S.Kick)
+    else
+      chat.flash(S.Warning)
+    end
   end
 
   function chat.tick()
@@ -18859,6 +18891,11 @@ function M.Attach(tab, Window, cfg)
   function chat.send(text)
     text = U.cut(U.trim(text), C.MaxLength)
     if text == "" then return false end
+    local banned = chat.banned(text)
+    if banned then
+      chat.strike(banned)
+      return false
+    end
     if not chat.ready() then
       chat.setup()
       chat.flash(sys.http and S.SetupTitle or S.NoHttp)
@@ -22093,7 +22130,7 @@ TransparencyValue=0.15,
 UIScale=1,
 
 ConfigManager=nil,
-Version="0.0.9",
+Version="0.0.8",
 
 Services=a.j(),
 
