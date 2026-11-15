@@ -17639,11 +17639,20 @@ function U.flag(v)
   return v ~= false
 end
 
+function U.names(v)
+  local set = {}
+  if type(v) ~= "table" then return set end
+  for _, name in pairs(v) do
+    set[type(name) == "number" and name or tostring(name)] = true
+  end
+  return set
+end
+
 local D = {
   Header = 30,
   Input = 44,
   Edit = 28,
-  Alias = { Url = "Link", Cooldown = "MessageDelay" },
+  Alias = { Url = "Link", Cooldown = "MessageDelay", AdminList = "adminlist" },
   Reload = { Url = true, Path = true },
   Item = 36,
   Strings = {
@@ -17683,6 +17692,7 @@ local D = {
     OnMessage = {},
     NameMode = { "Name" },
     NameColor = { Color3.fromRGB(32, 99, 235), U.color },
+    AdminList = { {}, U.names },
     Cooldown = { 2, U.num(0) },
     LayoutOrder = { nil, U.num(-2147483648, 2147483647, true) },
     PollInterval = { 2, U.num(.5) },
@@ -17938,10 +17948,8 @@ function M.Attach(tab, Window, cfg)
     if type(src.Strings) == "table" then U.merge(S, src.Strings) end
     if src.LayoutOrder ~= nil then tab.UIElements.Main.LayoutOrder = C.LayoutOrder end
     if src.GroupMessages ~= nil or src.GroupGap ~= nil then chat.group() end
-    if src.NameColor ~= nil then
-      for _, en in pairs(st.rows) do
-        if en.nameLabel then en.nameLabel.TextColor3 = C.NameColor end
-      end
+    if src.NameColor ~= nil or src.AdminList ~= nil or src.adminlist ~= nil then
+      for _, en in pairs(st.rows) do chat.paint(en) end
     end
     st.ep = chat.endpoint()
     return reload
@@ -18139,6 +18147,7 @@ function M.Attach(tab, Window, cfg)
   function chat.update(en)
     en.msg.Text = en.data.m
     if en.nameLabel then en.nameLabel.Text = en.data.n end
+    chat.paint(en)
     chat.meta(en)
   end
 
@@ -18303,6 +18312,36 @@ function M.Attach(tab, Window, cfg)
     ui.popup.GroupTransparency = 1
     ui.popupScale.Scale = .85
     chat.openLayer()
+  end
+
+  function chat.admin(d)
+    return C.AdminList[d.i] or C.AdminList[d.n] or false
+  end
+
+  function chat.spectrum()
+    local points = {}
+    for i = 0, 6 do
+      points[i + 1] = ColorSequenceKeypoint.new(i / 6, Color3.fromHSV((os.clock() * .2 + i / 7) % 1, .75, 1))
+    end
+    return ColorSequence.new(points)
+  end
+
+  function chat.paint(en)
+    if not en.nameLabel then return end
+    local admin = chat.admin(en.data)
+    en.rainbow.Enabled = admin
+    en.nameLabel.TextColor3 = admin and Color3.new(1, 1, 1) or C.NameColor
+    if not admin or st.spin then return end
+    st.spin = true
+    task.spawn(function()
+      while st.alive do
+        local spectrum = chat.spectrum()
+        for _, row in pairs(st.rows) do
+          if row.nameLabel and row.rainbow.Enabled then row.rainbow.Color = spectrum end
+        end
+        task.wait(.05)
+      end
+    end)
   end
 
   function chat.cap()
@@ -18529,14 +18568,15 @@ function M.Attach(tab, Window, cfg)
     }, true)
 
     if not mine then
+      en.rainbow = New("UIGradient", { Enabled = false, Color = chat.spectrum() })
       en.nameLabel = U.label({
         Text = data.n,
         AutomaticSize = "XY",
         TextSize = 13,
-        TextColor3 = C.NameColor,
         LayoutOrder = 1,
         Weight = "SemiBold",
-      }, { U.pad(0, 0, 4, 0) })
+      }, { U.pad(0, 0, 4, 0), en.rainbow })
+      chat.paint(en)
     end
 
     en.holder = U.box({ AutomaticSize = "XY", GroupTransparency = fade and 1 or 0 }, {
