@@ -17643,11 +17643,7 @@ local D = {
   Edit = 28,
   Alias = { Url = "Link", Cooldown = "MessageDelay" },
   Reload = { Url = true, Path = true },
-  State = {
-    wait = { Color3.fromRGB(245, 166, 35), "Connecting" },
-    on = { Color3.fromRGB(51, 199, 89), "Online" },
-    off = { Color3.fromRGB(235, 70, 70), "Offline" },
-  },
+  Item = 36,
   Strings = {
     Title = "General Chat",
     Placeholder = "Type a message...",
@@ -17659,9 +17655,10 @@ local D = {
     Edited = "edited",
     Today = "Today",
     Yesterday = "Yesterday",
-    Online = "Online",
-    Offline = "Offline",
-    Connecting = "Connecting...",
+    Anonymous = "Anonymous",
+    Settings = "Settings",
+    AnonMode = "Anonymous mode",
+    AnonDesc = "Hide your name and ID from everyone else",
     Empty = "No messages yet. Be the first to say hi!",
     Editing = "Editing message",
     Cooldown = "Wait %.1fs before sending again",
@@ -17693,6 +17690,9 @@ local D = {
     AllowDelete = { true, U.flag },
     AllowCopy = { true, U.flag },
     ShowTime = { true, U.flag },
+    Anonymous = { false, U.flag },
+    SaveConfig = { true, U.flag },
+    ConfigFile = { "WindUI/GeneralTab.json" },
   },
 }
 
@@ -17800,14 +17800,34 @@ function U.plain(props)
   return props
 end
 
-function U.box(props, children)
-  return New("Frame", U.plain(props), children)
+function U.box(props, children, class)
+  return New(class or "Frame", U.plain(props), children)
 end
 
 function U.label(props, children)
   props.FontFace = U.font(props.Weight)
   props.Weight = nil
   return New("TextLabel", U.plain(props), children)
+end
+
+function U.tween(obj, time, props, style)
+  Creator.Tween(obj, time, props, style or Enum.EasingStyle.Quint, Enum.EasingDirection.Out):Play()
+end
+
+function U.tap(input)
+  local kind = input.UserInputType
+  return kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.Touch
+end
+
+function U.press(btn, up, down)
+  Creator.AddSignal(btn.MouseButton1Down, function()
+    U.tween(btn, .1, { ImageTransparency = down })
+  end)
+  for _, e in ipairs { btn.MouseButton1Up, btn.MouseLeave } do
+    Creator.AddSignal(e, function()
+      U.tween(btn, .15, { ImageTransparency = up })
+    end)
+  end
 end
 
 function U.pad(top, bottom, left, right)
@@ -17832,7 +17852,7 @@ function U.glass(radius, fill, line, props, children)
   return Round(radius, "Squircle", props, children)
 end
 
-function U.icon(name, size)
+function U.icon(name, size, tag, color)
   local ok, res = pcall(Creator.Icon, name)
   if not (ok and res and res[1]) then return end
   return New("ImageLabel", {
@@ -17842,7 +17862,8 @@ function U.icon(name, size)
     ImageRectSize = res[2].ImageRectSize,
     AnchorPoint = Vector2.new(.5, .5),
     Position = UDim2.fromScale(.5, .5),
-    ThemeTag = { ImageColor3 = "White" },
+    ImageColor3 = color,
+    ThemeTag = not color and { ImageColor3 = tag or "White" } or nil,
   })
 end
 
@@ -17864,12 +17885,14 @@ function M.Attach(tab, Window, cfg)
     counter = 0,
     flashId = 0,
     seq = math.random(0, 255),
+    pad = Window.HidePanelBackground and 10 or 20,
+    hold = 0,
     link = "wait",
     alive = true,
     force = true,
   }
 
-  local ui = {}
+  local ui = { switches = {} }
   local chat = {}
 
   function chat.apply(src)
@@ -17910,7 +17933,44 @@ function M.Attach(tab, Window, cfg)
     return tab.Selected == true and not Window.Closed
   end
 
+  function chat.uid()
+    if not C.Anonymous then return st.player.UserId end
+    st.anonId = st.anonId or -math.random(100000, 2147483647)
+    return st.anonId
+  end
+
+  function chat.load()
+    if not (C.SaveConfig and readfile) then return end
+    local ok, data = pcall(function()
+      return HttpService:JSONDecode(readfile(C.ConfigFile))
+    end)
+    if not (ok and type(data) == "table") then return end
+    if data.anonymous ~= nil then C.Anonymous = data.anonymous == true end
+    st.anonId = tonumber(data.anonId)
+  end
+
+  function chat.save()
+    if not (C.SaveConfig and writefile) then return end
+    pcall(function()
+      local dir = C.ConfigFile:match "^(.+)/[^/]+$"
+      if dir and makefolder and not isfolder(dir) then makefolder(dir) end
+      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, anonId = st.anonId })
+    end)
+  end
+
+  function chat.sync()
+    for key, fn in pairs(ui.switches) do fn(C[key]) end
+    if C.Anonymous then chat.uid() end
+    chat.save()
+  end
+
+  function chat.set(key, v)
+    C[key] = v
+    chat.sync()
+  end
+
   function chat.name()
+    if C.Anonymous then return S.Anonymous end
     local u = C.Username
     if type(u) == "function" then
       local ok, res = pcall(u)
@@ -17922,28 +17982,29 @@ function M.Attach(tab, Window, cfg)
   end
 
   function chat.mine(d)
-    if d.i then return d.i == st.player.UserId end
+    if d.i then return d.i == st.player.UserId or d.i == st.anonId end
     return d.n == chat.name()
-  end
-
-  function chat.status()
-    local s = D.State[st.link]
-    ui.dot.BackgroundColor3 = s[1]
-    ui.status.Text = S[s[2]]
   end
 
   function chat.setStatus(ok)
     st.link = ok and "on" or "off"
     if ok then st.fails = 0 end
-    chat.status()
   end
 
   function chat.flash(text)
     st.flashId += 1
     local id = st.flashId
-    ui.status.Text = text
+    ui.toastText.Text = text
+    ui.toast.Visible = true
+    U.tween(ui.toast, .3, { Position = UDim2.new(.5, 0, 0, 14), ImageTransparency = 0 }, Enum.EasingStyle.Back)
+    U.tween(ui.toastText, .2, { TextTransparency = 0 })
     task.delay(1.8, function()
-      if st.alive and st.flashId == id then chat.status() end
+      if not st.alive or st.flashId ~= id then return end
+      U.tween(ui.toast, .2, { Position = UDim2.new(.5, 0, 0, 4), ImageTransparency = 1 })
+      U.tween(ui.toastText, .2, { TextTransparency = 1 })
+      task.delay(.2, function()
+        if st.alive and st.flashId == id then ui.toast.Visible = false end
+      end)
     end)
   end
 
@@ -17956,10 +18017,11 @@ function M.Attach(tab, Window, cfg)
     if ui.setup.Visible then ui.empty.Visible = false end
   end
 
-  function chat.layout()
+  function chat.layout(instant)
     local h = D.Input + (st.editing and D.Edit or 0)
-    ui.bottom.Size = UDim2.new(1, 0, 0, h)
-    ui.panel.Size = UDim2.new(1, 0, 1, -(D.Header + 6 + h + 8))
+    local t = instant and 0 or .2
+    U.tween(ui.bottom, t, { Size = UDim2.new(1, 0, 0, h) })
+    U.tween(ui.panel, t, { Size = UDim2.new(1, 0, 1, -(D.Header + 6 + h + 8)) })
     ui.editBar.Visible = st.editing ~= nil
   end
 
@@ -17968,19 +18030,26 @@ function M.Attach(tab, Window, cfg)
     return s.CanvasPosition.Y + s.AbsoluteWindowSize.Y >= s.AbsoluteCanvasSize.Y - 60
   end
 
-  function chat.toBottom()
+  function chat.toBottom(smooth)
     task.defer(function()
       RunService.Heartbeat:Wait()
-      if st.alive and ui.scroll.Parent then
-        ui.scroll.CanvasPosition = Vector2.new(0, ui.scroll.AbsoluteCanvasSize.Y)
+      if not (st.alive and ui.scroll.Parent) then return end
+      local to = Vector2.new(0, ui.scroll.AbsoluteCanvasSize.Y)
+      if smooth then
+        U.tween(ui.scroll, .25, { CanvasPosition = to })
+      else
+        ui.scroll.CanvasPosition = to
       end
     end)
   end
 
+  function chat.scale()
+    local s = ui.probe.AbsoluteSize.X / 100
+    return s > 0 and s or 1
+  end
+
   function chat.maxWidth()
-    local scale = ui.probe.AbsoluteSize.X / 100
-    if scale <= 0 then scale = 1 end
-    local w = ui.scroll.AbsoluteWindowSize.X / scale
+    local w = ui.scroll.AbsoluteWindowSize.X / chat.scale()
     return math.max(110, (w > 0 and w or 300) * .78 - 46)
   end
 
@@ -18012,7 +18081,6 @@ function M.Attach(tab, Window, cfg)
   function chat.drop(key)
     local en = st.rows[key]
     if en then
-      if st.open == en.actions then st.open = nil end
       en.row:Destroy()
       st.rows[key] = nil
     end
@@ -18080,34 +18148,193 @@ function M.Attach(tab, Window, cfg)
     end
   end
 
-  function chat.action(parent, text, order, callback, color)
-    local btn = Round(8, "Squircle", {
-      AutomaticSize = "XY",
-      Size = UDim2.new(),
+  function chat.item(order, name, icon, color, callback)
+    local img = U.icon(icon, 16, "Text", color)
+    local btn = Round(10, "Squircle", {
+      Size = UDim2.new(1, 0, 0, D.Item),
       LayoutOrder = order,
       ThemeTag = { ImageColor3 = "Text" },
-      ImageTransparency = .86,
-      Parent = parent,
+      ImageTransparency = 1,
+      Parent = ui.menu,
     }, {
-      U.pad(4, 4, 9),
       U.label({
-        Text = text,
-        AutomaticSize = "XY",
-        TextSize = 12,
-        TextTransparency = color and 0 or .1,
-        TextColor3 = color,
+        Text = S[name],
+        Position = UDim2.fromOffset(img and 38 or 14, 0),
+        Size = UDim2.new(1, -38, 1, 0),
+        TextSize = 14,
+        TextXAlignment = "Left",
         Weight = "Medium",
+        TextColor3 = color,
         ThemeTag = not color and { TextColor3 = "Text" } or nil,
       }),
     }, true)
-    Creator.AddSignal(btn.MouseButton1Click, callback)
+    if img then
+      img.AnchorPoint = Vector2.new(0, .5)
+      img.Position = UDim2.new(0, 12, .5, 0)
+      img.Parent = btn
+    end
+    U.press(btn, 1, .88)
+    Creator.AddSignal(btn.MouseButton1Click, function()
+      chat.closeLayer()
+      callback()
+    end)
+  end
+
+  function chat.openLayer(page)
+    st.layer = page
+    ui.layer.Visible = true
+    ui.popup.Visible = page == "popup"
+    ui.drawer.Visible = page == "drawer"
+    U.tween(ui.dim, .2, { BackgroundTransparency = .55 })
+    if page == "drawer" then
+      U.tween(ui.drawer, .28, { Position = UDim2.new() })
+    else
+      U.tween(ui.popup, .18, { GroupTransparency = 0 })
+      U.tween(ui.popupScale, .25, { Scale = 1 }, Enum.EasingStyle.Back)
+    end
+  end
+
+  function chat.closeLayer()
+    local page = st.layer
+    if not page then return end
+    st.layer = nil
+    U.tween(ui.dim, .2, { BackgroundTransparency = 1 })
+    if page == "drawer" then
+      U.tween(ui.drawer, .22, { Position = UDim2.fromOffset(-300, 0) })
+    else
+      U.tween(ui.popup, .12, { GroupTransparency = 1 })
+      U.tween(ui.popupScale, .12, { Scale = .9 })
+    end
+    task.delay(.25, function()
+      if st.alive and not st.layer then ui.layer.Visible = false end
+    end)
+  end
+
+  function chat.popup(en)
+    local mine = chat.mine(en.data)
+    local items = {
+      { "Copy", "copy", C.AllowCopy, function() chat.copy(en.data.m) end },
+      { "Edit", "pencil", mine and C.AllowEdit, function() chat.edit(en.key) end },
+      { "Delete", "trash-2", mine and C.AllowDelete, function() chat.delete(en.key) end, Color3.fromRGB(240, 90, 90) },
+    }
+    for _, v in ipairs(ui.menu:GetChildren()) do
+      if v:IsA "GuiButton" then v:Destroy() end
+    end
+    local n = 0
+    for _, v in ipairs(items) do
+      if v[3] then
+        n += 1
+        chat.item(n, v[1], v[2], v[5], v[4])
+      end
+    end
+    if n == 0 then return end
+
+    local s, lay, b = chat.scale(), ui.layer, en.bubble
+    local w, h = 156, n * D.Item + (n - 1) * 2 + 12
+    local lw, lh = lay.AbsoluteSize.X / s, lay.AbsoluteSize.Y / s
+    local bw, bh = b.AbsoluteSize.X / s, b.AbsoluteSize.Y / s
+    local x = (b.AbsolutePosition.X - lay.AbsolutePosition.X) / s
+    local y = (b.AbsolutePosition.Y - lay.AbsolutePosition.Y) / s
+    if mine then x = x + bw - w end
+    y = y + bh + 6
+    if y + h > lh - 8 then y = y - bh - h - 12 end
+    x = math.clamp(x, 8, math.max(8, lw - w - 8))
+    y = math.clamp(y, 8, math.max(8, lh - h - 8))
+
+    ui.popup.Size = UDim2.fromOffset(w, h)
+    ui.popup.Position = UDim2.fromOffset(x + w / 2, y + h / 2)
+    ui.popup.GroupTransparency = 1
+    ui.popupScale.Scale = .85
+    chat.openLayer "popup"
+  end
+
+  function chat.hold(en)
+    local b = en.bubble
+    Creator.AddSignal(b.InputBegan, function(input)
+      if not U.tap(input) then return end
+      st.hold += 1
+      local id, from = st.hold, input.Position
+      U.tween(b, .35, { ImageTransparency = en.tone - .12 })
+      task.delay(.4, function()
+        if not st.alive or st.hold ~= id then return end
+        local held = input.UserInputState ~= Enum.UserInputState.End and (input.Position - from).Magnitude <= 12
+        if held and en.row.Parent then
+          chat.popup(en)
+        else
+          U.tween(b, .15, { ImageTransparency = en.tone })
+        end
+      end)
+    end)
+    Creator.AddSignal(b.InputEnded, function(input)
+      if not U.tap(input) then return end
+      st.hold += 1
+      U.tween(b, .15, { ImageTransparency = en.tone })
+    end)
+  end
+
+  function chat.toggle(parent, order, title, desc, key)
+    local fill = Round(12, "Squircle", {
+      Size = UDim2.fromScale(1, 1),
+      ThemeTag = { ImageColor3 = "Toggle" },
+      ImageTransparency = 1,
+    })
+    local knob = New("Frame", {
+      AnchorPoint = Vector2.new(0, .5),
+      Size = UDim2.fromOffset(18, 18),
+      BorderSizePixel = 0,
+    }, { New("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+    local track = Round(12, "Squircle", {
+      AnchorPoint = Vector2.new(1, .5),
+      Position = UDim2.fromScale(1, .5),
+      Size = UDim2.fromOffset(42, 24),
+      ThemeTag = { ImageColor3 = "Text" },
+      ImageTransparency = .8,
+    }, { fill, knob }, true)
+
+    ui.switches[key] = function(on, instant)
+      local t = instant and 0 or .2
+      U.tween(fill, t, { ImageTransparency = on and 0 or 1 })
+      U.tween(knob, t, {
+        Position = UDim2.new(0, on and 21 or 3, .5, 0),
+        BackgroundColor3 = on and Color3.new(1, 1, 1) or Color3.fromRGB(170, 170, 176),
+      })
+    end
+    ui.switches[key](C[key], true)
+    Creator.AddSignal(track.MouseButton1Click, function()
+      chat.set(key, not C[key])
+    end)
+
+    U.box({ Size = UDim2.new(1, 0, 0, 54), LayoutOrder = order, Parent = parent }, {
+      U.label({
+        Text = title,
+        Size = UDim2.new(1, -56, 0, 18),
+        TextSize = 14,
+        TextXAlignment = "Left",
+        Weight = "Medium",
+        ThemeTag = { TextColor3 = "Text" },
+      }),
+      U.label({
+        Text = desc,
+        Position = UDim2.fromOffset(0, 20),
+        Size = UDim2.new(1, -56, 0, 30),
+        TextSize = 12,
+        TextWrapped = true,
+        TextXAlignment = "Left",
+        TextYAlignment = "Top",
+        TextTransparency = .5,
+        ThemeTag = { TextColor3 = "Text" },
+      }),
+      track,
+    })
   end
 
   function chat.row(key, data, pending)
     local mine = chat.mine(data)
     local align = mine and "Right" or "Left"
+    local fade = pending == true or st.loaded == true
     local en = {
       key = key,
+      tone = mine and .7 or .9,
       data = data,
       pending = pending == true,
       failed = false,
@@ -18139,17 +18366,13 @@ function M.Attach(tab, Window, cfg)
       Size = UDim2.new(),
       LayoutOrder = 2,
       ThemeTag = { ImageColor3 = mine and "Primary" or "Text" },
-      ImageTransparency = mine and .7 or .9,
+      ImageTransparency = en.tone,
     }, {
       New("UIListLayout", { Padding = UDim.new(0, 2), HorizontalAlignment = align }),
       U.pad(7, 6, 12),
       en.msg,
       en.meta,
     }, true)
-
-    en.actions = U.box({ Visible = false, AutomaticSize = "XY", LayoutOrder = 3 }, {
-      New("UIListLayout", { FillDirection = "Horizontal", HorizontalAlignment = align, Padding = UDim.new(0, 6) }),
-    })
 
     if not mine then
       en.nameLabel = U.label({
@@ -18162,37 +18385,22 @@ function M.Attach(tab, Window, cfg)
       }, { U.pad(0, 0, 4, 0) })
     end
 
+    en.holder = U.box({ AutomaticSize = "XY", GroupTransparency = fade and 1 or 0 }, {
+      New("UIListLayout", { HorizontalAlignment = align, Padding = UDim.new(0, 3) }),
+      en.nameLabel,
+      en.bubble,
+    }, "CanvasGroup")
+
     en.row = U.box({ Name = key, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = "Y", Parent = ui.scroll }, {
       New("UIListLayout", { FillDirection = "Horizontal", HorizontalAlignment = align }),
-      U.box({ AutomaticSize = "XY" }, {
-        New("UIListLayout", { HorizontalAlignment = align, Padding = UDim.new(0, 3) }),
-        en.nameLabel,
-        en.bubble,
-        en.actions,
-      }),
+      en.holder,
     })
 
     st.rows[key] = en
     st.order[#st.order + 1] = key
 
-    local buttons = {
-      { "Copy", C.AllowCopy, function() chat.copy(en.data.m) end },
-      { "Edit", mine and C.AllowEdit, function()
-        en.actions.Visible = false
-        st.open = nil
-        chat.edit(key)
-      end },
-      { "Delete", mine and C.AllowDelete, function() chat.delete(key) end, Color3.fromRGB(240, 90, 90) },
-    }
-    for i, b in ipairs(buttons) do
-      if b[2] then chat.action(en.actions, S[b[1]], i, b[3], b[4]) end
-    end
-
-    Creator.AddSignal(en.bubble.MouseButton1Click, function()
-      if st.open and st.open ~= en.actions then st.open.Visible = false end
-      en.actions.Visible = not en.actions.Visible
-      st.open = en.actions.Visible and en.actions or nil
-    end)
+    chat.hold(en)
+    if fade then U.tween(en.holder, .3, { GroupTransparency = 0 }) end
 
     chat.meta(en)
     return en
@@ -18237,7 +18445,7 @@ function M.Attach(tab, Window, cfg)
 
     chat.reindex()
     chat.widths()
-    if stick or own or not st.loaded then chat.toBottom() end
+    if stick or own or not st.loaded then chat.toBottom(st.loaded == true) end
     if st.loaded and incoming > 0 and not chat.active() then chat.setUnread(st.unread + incoming) end
     st.loaded = true
   end
@@ -18345,14 +18553,14 @@ function M.Attach(tab, Window, cfg)
 
     st.lastSend = os.clock()
     st.counter += 1
-    local id = st.player.UserId
+    local id = chat.uid()
     local key = string.format("%010d%06x%02x%04x", os.time(), id % 0x1000000, st.seq, st.counter % 0x10000)
     local data = { n = chat.name(), i = id, m = text, t = os.time() }
     st.pending[key] = table.clone(data)
     chat.row(key, data, true)
     chat.reindex()
     chat.widths()
-    chat.toBottom()
+    chat.toBottom(true)
     return true
   end
 
@@ -18361,6 +18569,7 @@ function M.Attach(tab, Window, cfg)
   end
 
   chat.apply(cfg or {})
+  chat.load()
 
   tab.UIElements.ContainerFrame.Visible = false
 
@@ -18370,28 +18579,34 @@ function M.Attach(tab, Window, cfg)
     AnchorPoint = Vector2.new(0, 1),
     Position = UDim2.fromScale(0, 1),
     Parent = tab.UIElements.ContainerFrameCanvas,
-  }, { U.pad(Window.HidePanelBackground and 10 or 20) })
+  }, { U.pad(st.pad) })
 
   ui.probe = U.box({ Size = UDim2.fromOffset(100, 0), Parent = ui.root })
 
-  ui.dot = New("Frame", {
-    Size = UDim2.fromOffset(8, 8),
-    LayoutOrder = 1,
-  }, { New("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+  local bars = {}
+  for i = 1, 3 do
+    bars[i] = New("Frame", {
+      Size = UDim2.fromOffset(16, 2),
+      Position = UDim2.new(.5, -8, .5, (i - 2) * 5 - 1),
+      BorderSizePixel = 0,
+      ThemeTag = { BackgroundColor3 = "Text" },
+    }, { New("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+  end
 
-  ui.status = U.label({
-    AutomaticSize = "XY",
-    TextSize = 12,
-    TextTransparency = .35,
-    LayoutOrder = 2,
-    ThemeTag = { TextColor3 = "Text" },
-  })
+  ui.menuBtn = Round(10, "Squircle", {
+    AnchorPoint = Vector2.new(0, .5),
+    Position = UDim2.fromScale(0, .5),
+    Size = UDim2.fromOffset(30, 30),
+    ThemeTag = { ImageColor3 = "Text" },
+    ImageTransparency = 1,
+  }, bars, true)
 
   U.box({ Size = UDim2.new(1, 0, 0, D.Header), Parent = ui.root }, {
+    ui.menuBtn,
     not tab.ShowTabTitle and U.label({
       Text = S.Title,
       AnchorPoint = Vector2.new(0, .5),
-      Position = UDim2.new(0, 2, .5, 0),
+      Position = UDim2.new(0, 40, .5, 0),
       Size = UDim2.new(.6, 0, 1, 0),
       TextSize = 17,
       TextXAlignment = "Left",
@@ -18399,15 +18614,6 @@ function M.Attach(tab, Window, cfg)
       Weight = "SemiBold",
       ThemeTag = { TextColor3 = "Text" },
     }) or nil,
-    U.box({
-      AnchorPoint = Vector2.new(1, .5),
-      Position = UDim2.fromScale(1, .5),
-      AutomaticSize = "XY",
-    }, {
-      New("UIListLayout", { FillDirection = "Horizontal", VerticalAlignment = "Center", Padding = UDim.new(0, 6) }),
-      ui.dot,
-      ui.status,
-    }),
   })
 
   ui.scroll = New("ScrollingFrame", {
@@ -18443,6 +18649,26 @@ function M.Attach(tab, Window, cfg)
     ThemeTag = { TextColor3 = "Text" },
     Parent = ui.panel,
   })
+
+  ui.toastText = U.label({
+    AutomaticSize = "XY",
+    TextSize = 13,
+    TextTransparency = 1,
+    Weight = "Medium",
+    ThemeTag = { TextColor3 = "White" },
+  })
+
+  ui.toast = Round(12, "Squircle", {
+    AnchorPoint = Vector2.new(.5, 0),
+    Position = UDim2.new(.5, 0, 0, 4),
+    AutomaticSize = "XY",
+    Size = UDim2.new(),
+    Visible = false,
+    ZIndex = 6,
+    ThemeTag = { ImageColor3 = "Primary" },
+    ImageTransparency = 1,
+    Parent = ui.panel,
+  }, { U.pad(6, 6, 12), ui.toastText })
 
   ui.setupTitle = U.label({
     AutomaticSize = "XY",
@@ -18545,6 +18771,72 @@ function M.Attach(tab, Window, cfg)
     U.glass(14, .92, .88, { Size = UDim2.new(1, -(D.Input + 8), 1, 0) }, { ui.input }),
     ui.send,
   })
+
+  ui.dim = New("TextButton", {
+    Text = "",
+    AutoButtonColor = false,
+    Size = UDim2.fromScale(1, 1),
+    BackgroundColor3 = Color3.new(),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+  })
+
+  ui.popupScale = New("UIScale", { Scale = .85 })
+
+  ui.menu = Round(14, "Squircle", {
+    Size = UDim2.fromScale(1, 1),
+    Active = true,
+    ThemeTag = { ImageColor3 = "Dialog" },
+  }, {
+    New("UIListLayout", { Padding = UDim.new(0, 2) }),
+    U.pad(6),
+  })
+
+  ui.popup = U.box({
+    AnchorPoint = Vector2.new(.5, .5),
+    Visible = false,
+    Active = true,
+    GroupTransparency = 1,
+  }, { ui.popupScale, ui.menu }, "CanvasGroup")
+
+  ui.drawer = Round(18, "Squircle", {
+    Position = UDim2.fromOffset(-300, 0),
+    Size = UDim2.new(.62, 0, 1, 0),
+    Visible = false,
+    Active = true,
+    ThemeTag = { ImageColor3 = "Dialog" },
+  }, {
+    New("UISizeConstraint", { MaxSize = Vector2.new(260, math.huge) }),
+    New("UIListLayout", { Padding = UDim.new(0, 10) }),
+    U.pad(16, 16, 14),
+    U.label({
+      Text = S.Settings,
+      Size = UDim2.new(1, 0, 0, 26),
+      TextSize = 18,
+      TextXAlignment = "Left",
+      Weight = "SemiBold",
+      LayoutOrder = 1,
+      ThemeTag = { TextColor3 = "Text" },
+    }),
+  })
+
+  chat.toggle(ui.drawer, 2, S.AnonMode, S.AnonDesc, "Anonymous")
+
+  ui.layer = U.box({
+    Position = UDim2.fromOffset(-st.pad, -st.pad),
+    Size = UDim2.new(1, st.pad * 2, 1, st.pad * 2),
+    Visible = false,
+    ClipsDescendants = true,
+    ZIndex = 20,
+    Parent = ui.root,
+  }, { ui.dim, ui.popup, ui.drawer })
+
+  U.press(ui.send, 0, .3)
+  U.press(ui.menuBtn, 1, .85)
+  Creator.AddSignal(ui.dim.MouseButton1Click, chat.closeLayer)
+  Creator.AddSignal(ui.menuBtn.MouseButton1Click, function()
+    chat.openLayer "drawer"
+  end)
 
   Creator.AddSignal(ui.send.MouseButton1Click, function()
     chat.submit()
@@ -18660,9 +18952,17 @@ function M.Attach(tab, Window, cfg)
       st.force = true
       chat.clear()
     end
-    chat.status()
+    if t.Anonymous ~= nil then chat.sync() end
     chat.setup()
     return api
+  end
+
+  function api.SetAnonymous(_, on)
+    return api:Configure { Anonymous = on == true }
+  end
+
+  function api.IsAnonymous(_)
+    return C.Anonymous == true
   end
 
   function api.Destroy(_)
@@ -18680,9 +18980,8 @@ function M.Attach(tab, Window, cfg)
     return api:Configure(t)
   end
 
-  chat.layout()
+  chat.layout(true)
   chat.setup()
-  chat.status()
   return api
 end
 
