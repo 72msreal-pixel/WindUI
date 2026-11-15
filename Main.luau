@@ -18109,6 +18109,7 @@ function M.Attach(tab, Window, cfg)
   end
 
   function chat.banned(text)
+    if chat.isAdmin() then return end
     local low = text:lower()
     for _, word in ipairs(C.Blacklist) do
       if low:find(word, 1, true) then return word end
@@ -18350,13 +18351,12 @@ function M.Attach(tab, Window, cfg)
   end
 
   function chat.popup(en)
-    local mine = chat.mine(en.data)
-    local owner = mine or chat.isAdmin()
+    local own = chat.mine(en.data) or chat.isAdmin()
     local items = {
       { "Reply", "reply", true, function() chat.reply(en) end },
       { "Copy", "copy", C.AllowCopy, function() chat.copy(en.data.m) end },
-      { "Edit", "pencil", owner and C.AllowEdit, function() chat.edit(en.key) end },
-      { "Delete", "trash-2", owner and C.AllowDelete, function() chat.delete(en.key) end, Color3.fromRGB(240, 90, 90) },
+      { "Edit", "pencil", own and C.AllowEdit, function() chat.edit(en.key) end },
+      { "Delete", "trash-2", own and C.AllowDelete, function() chat.delete(en.key) end, Color3.fromRGB(240, 90, 90) },
     }
     for _, v in ipairs(ui.list:GetChildren()) do
       if v:IsA "GuiButton" then v:Destroy() end
@@ -18892,9 +18892,7 @@ function M.Attach(tab, Window, cfg)
   function chat.send(text)
     text = U.cut(U.trim(text), C.MaxLength)
     if text == "" then return false end
-    local target = st.editing and st.rows[st.editing]
-    local moderating = target and not chat.mine(target.data) and chat.isAdmin()
-    local banned = not moderating and chat.banned(text)
+    local banned = chat.banned(text)
     if banned then
       chat.strike(banned)
       return false
