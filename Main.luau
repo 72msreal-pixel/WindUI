@@ -18744,7 +18744,6 @@ function M.Attach(tab, Window, cfg)
     GroupTransparency = 1,
   }, { ui.popupScale, ui.menu }, "CanvasGroup")
 
-  -- layer is bigger than root so the dim also covers the padding
   ui.layer = U.box({
     Position = UDim2.fromOffset(-st.pad, -st.pad),
     Size = UDim2.new(1, st.pad * 2, 1, st.pad * 2),
@@ -18754,7 +18753,6 @@ function M.Attach(tab, Window, cfg)
     Parent = ui.root,
   }, { ui.dim, ui.popup })
 
-  -- settings page = the tab's own container, so it uses real WindUI elements
   tab:Button {
     Title = S.Settings,
     Desc = S.Back,
