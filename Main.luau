@@ -17714,7 +17714,6 @@ local D = {
     Cooldown = { 2, U.num(0) },
     LayoutOrder = { nil, U.num(-2147483648, 2147483647, true) },
     PollInterval = { 2, U.num(.5) },
-    IdlePollInterval = { 10, U.num(1) },
     BatchInterval = { 1.2, U.num(.3) },
     InitialMessages = { 10, U.num(1, 200, true) },
     LoadMoreCount = { 10, U.num(1, 200, true) },
@@ -17941,7 +17940,6 @@ function M.Attach(tab, Window, cfg)
     tomb = {},
     names = {},
     strikes = {},
-    unread = 0,
     lastSend = 0,
     fails = 0,
     counter = 0,
@@ -18290,15 +18288,6 @@ function M.Attach(tab, Window, cfg)
     if st.editing == key then chat.cancelEdit() end
     chat.drop(key)
     chat.reindex()
-  end
-
-  function chat.setUnread(n)
-    st.unread = n
-    local main = tab.UIElements.Main
-    local label = main and main.Frame and main.Frame:FindFirstChildOfClass "TextLabel"
-    if label then
-      label.Text = n > 0 and string.format("%s (%s)", st.title, n > 99 and "99+" or n) or st.title
-    end
   end
 
   function chat.item(order, name, icon, color, callback)
@@ -18749,7 +18738,7 @@ function M.Attach(tab, Window, cfg)
     local keys = U.keys(snap)
     local fresh = #st.order == 0
     local stick = chat.atBottom()
-    local own, incoming = false, 0
+    local own = false
     local now = os.clock()
 
     for _, key in ipairs(keys) do
@@ -18761,9 +18750,8 @@ function M.Attach(tab, Window, cfg)
           chat.row(key, d, false)
           if chat.mine(d) then
             own = true
-          else
-            incoming += 1
-            if st.loaded and C.OnMessage then task.spawn(pcall, C.OnMessage, d, key) end
+          elseif st.loaded and C.OnMessage then
+            task.spawn(pcall, C.OnMessage, d, key)
           end
         elseif now >= en.grace then
           local old = en.data
@@ -18787,7 +18775,6 @@ function M.Attach(tab, Window, cfg)
     chat.reindex()
     chat.widths()
     if stick or own or not st.loaded then chat.toBottom(st.loaded == true) end
-    if st.loaded and incoming > 0 and not chat.active() then chat.setUnread(st.unread + incoming) end
     st.loaded = true
   end
 
@@ -19288,7 +19275,6 @@ function M.Attach(tab, Window, cfg)
 
       local active = chat.active()
       if active and not loop.active then
-        if st.unread > 0 then chat.setUnread(0) end
         st.force = true
         chat.toBottom()
       end
@@ -19296,9 +19282,9 @@ function M.Attach(tab, Window, cfg)
 
       if chat.ready() then
         local now = os.clock()
-        local every = active and C.PollInterval or C.IdlePollInterval
+        local every = C.PollInterval
         if st.link == "off" then every = math.max(every, 5) end
-        if (st.force or now - loop.poll >= every) and not st.polling then
+        if active and (st.force or now - loop.poll >= every) and not st.polling then
           st.force = false
           loop.poll = now
           task.spawn(chat.poll)
