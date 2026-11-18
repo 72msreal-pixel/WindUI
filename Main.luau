@@ -17844,6 +17844,8 @@ function U.message(v)
     t = tonumber(v.t),
     e = tonumber(v.e),
     v = v.v == true or nil,
+    a = v.a == true or nil,
+    w = v.w == true or nil,
     r = type(r.m) == "string" and r.k and { k = tostring(r.k), n = tostring(r.n or "?"), i = tonumber(r.i), m = U.cut(r.m, 80) } or nil,
   }
 end
@@ -18428,17 +18430,18 @@ function M.Attach(tab, Window, cfg)
 
   function chat.title(en)
     if not en.admin then return en.data.n end
-    local text = chat.spectrum(en.data.n)
+    local text = en.rainbow and chat.spectrum(en.data.n) or (en.data.n:gsub("[&<>\"']", D.Escape))
     return en.data.v and text .. D.Badge or text
   end
 
   function chat.paint(en)
     if not en.nameLabel then return end
     en.admin = chat.admin(en.data)
+    en.rainbow = en.admin and (not en.data.a or en.data.w == true)
     en.nameLabel.RichText = en.admin
-    en.nameLabel.TextColor3 = en.admin and Color3.new(1, 1, 1) or C.NameColor
+    en.nameLabel.TextColor3 = en.rainbow and Color3.new(1, 1, 1) or C.NameColor
     en.nameLabel.Text = chat.title(en)
-    if not en.admin or st.spin then return end
+    if not en.rainbow or st.spin then return end
     st.spin = true
     task.spawn(function()
       while st.alive do
@@ -18447,7 +18450,7 @@ function M.Attach(tab, Window, cfg)
         if chat.active() then
           for _, row in pairs(st.rows) do
             local y = row.row.AbsolutePosition.Y - s.AbsolutePosition.Y
-            if row.admin and y > -row.row.AbsoluteSize.Y and y < s.AbsoluteSize.Y then
+            if row.rainbow and y > -row.row.AbsoluteSize.Y and y < s.AbsoluteSize.Y then
               row.nameLabel.Text = chat.title(row)
             end
           end
@@ -18771,7 +18774,7 @@ function M.Attach(tab, Window, cfg)
           end
         elseif now >= en.grace then
           local old = en.data
-          if old.m ~= d.m or old.e ~= d.e or old.n ~= d.n or old.v ~= d.v or old.t ~= d.t then
+          if old.m ~= d.m or old.e ~= d.e or old.n ~= d.n or old.v ~= d.v or old.a ~= d.a or old.w ~= d.w or old.t ~= d.t then
             en.data = d
             chat.update(en)
           end
@@ -18944,7 +18947,7 @@ function M.Attach(tab, Window, cfg)
     st.counter += 1
     local id = chat.uid()
     local key = string.format("%010d%06x%02x%04x", os.time(), id % 0x1000000, st.seq, st.counter % 0x10000)
-    local data = { n = chat.name(), i = id, m = text, t = os.time(), v = C.AdminVerified and chat.isAdmin() or nil, r = st.reply and table.clone(st.reply) }
+    local data = { n = chat.name(), i = id, m = text, t = os.time(), v = C.AdminVerified and chat.isAdmin() or nil, a = C.Anonymous or nil, w = C.AdminRainbow and chat.isAdmin() or nil, r = st.reply and table.clone(st.reply) }
     st.pending[key] = table.clone(data)
     chat.row(key, data, true)
     if st.reply then
