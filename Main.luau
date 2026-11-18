@@ -17666,6 +17666,11 @@ local D = {
   Reload = { Url = true, Path = true },
   Item = 36,
   Escape = { ["&"] = "&amp;", ["<"] = "&lt;", [">"] = "&gt;", ['"'] = "&quot;", ["'"] = "&apos;" },
+  Badge = ' <font color="#3b9cff">✔</font>',
+  Switches = {
+    { Key = "AdminRainbow", Title = "Rainbow", Desc = "RainbowDesc" },
+    { Key = "AdminVerified", Title = "Verified", Desc = "VerifiedDesc" },
+  },
   Strings = {
     Title = "General Chat",
     Placeholder = "Type a message...",
@@ -17701,6 +17706,8 @@ local D = {
     Kick = "Kicked for using blacklisted words in chat",
     Rainbow = "Rainbow name when anonymous",
     RainbowDesc = "Admin only. Your real ID is sent with your messages so the rainbow name stays",
+    Verified = "Verified badge",
+    VerifiedDesc = "Admin only. Shows a verified tick next to your name, even in anonymous mode. Your real ID is sent with your messages so the tick can be trusted",
   },
   Options = {
     Url = {},
@@ -17731,6 +17738,7 @@ local D = {
     GroupGap = { 300, U.num(0) },
     Anonymous = { false, U.flag },
     AdminRainbow = { false, U.flag },
+    AdminVerified = { false, U.flag },
     SaveConfig = { true, U.flag },
     ConfigFile = { "WindUI/GeneralTab.json" },
   },
@@ -17835,6 +17843,7 @@ function U.message(v)
     m = m,
     t = tonumber(v.t),
     e = tonumber(v.e),
+    v = v.v == true or nil,
     r = type(r.m) == "string" and r.k and { k = tostring(r.k), n = tostring(r.n or "?"), i = tonumber(r.i), m = U.cut(r.m, 80) } or nil,
   }
 end
@@ -18000,7 +18009,7 @@ function M.Attach(tab, Window, cfg)
   end
 
   function chat.uid()
-    if not C.Anonymous or (C.AdminRainbow and chat.isAdmin()) then return st.player.UserId end
+    if not C.Anonymous or ((C.AdminRainbow or C.AdminVerified) and chat.isAdmin()) then return st.player.UserId end
     st.anonId = st.anonId or -math.random(100000, 2147483647)
     st.anonIds[tostring(st.player.UserId)] = st.anonId
     return st.anonId
@@ -18014,6 +18023,7 @@ function M.Attach(tab, Window, cfg)
     if not (ok and type(data) == "table") then return end
     if data.anonymous ~= nil then C.Anonymous = data.anonymous == true end
     if data.rainbow ~= nil then C.AdminRainbow = data.rainbow == true end
+    if data.verified ~= nil then C.AdminVerified = data.verified == true end
     if type(data.anonIds) == "table" then st.anonIds = data.anonIds end
     st.anonId = tonumber(st.anonIds[tostring(st.player.UserId)])
     st.strikes = type(data.strikes) == "table" and data.strikes or {}
@@ -18024,7 +18034,7 @@ function M.Attach(tab, Window, cfg)
     pcall(function()
       local dir = C.ConfigFile:match "^(.+)/[^/]+$"
       if dir and makefolder and not isfolder(dir) then makefolder(dir) end
-      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, rainbow = C.AdminRainbow, anonIds = st.anonIds, strikes = st.strikes })
+      writefile(C.ConfigFile, HttpService:JSONEncode { anonymous = C.Anonymous, rainbow = C.AdminRainbow, verified = C.AdminVerified, anonIds = st.anonIds, strikes = st.strikes })
     end)
   end
 
@@ -18052,8 +18062,9 @@ function M.Attach(tab, Window, cfg)
   end
 
   function chat.adminSwitch()
-    if not ui.switches.AdminRainbow and chat.isAdmin() then
-      chat.switch("AdminRainbow", S.Rainbow, S.RainbowDesc)
+    if not chat.isAdmin() then return end
+    for _, item in ipairs(D.Switches) do
+      if not ui.switches[item.Key] then chat.switch(item.Key, S[item.Title], S[item.Desc]) end
     end
   end
 
@@ -18415,12 +18426,18 @@ function M.Attach(tab, Window, cfg)
     return table.concat(out)
   end
 
+  function chat.title(en)
+    if not en.admin then return en.data.n end
+    local text = chat.spectrum(en.data.n)
+    return en.data.v and text .. D.Badge or text
+  end
+
   function chat.paint(en)
     if not en.nameLabel then return end
     en.admin = chat.admin(en.data)
     en.nameLabel.RichText = en.admin
     en.nameLabel.TextColor3 = en.admin and Color3.new(1, 1, 1) or C.NameColor
-    en.nameLabel.Text = en.admin and chat.spectrum(en.data.n) or en.data.n
+    en.nameLabel.Text = chat.title(en)
     if not en.admin or st.spin then return end
     st.spin = true
     task.spawn(function()
@@ -18431,7 +18448,7 @@ function M.Attach(tab, Window, cfg)
           for _, row in pairs(st.rows) do
             local y = row.row.AbsolutePosition.Y - s.AbsolutePosition.Y
             if row.admin and y > -row.row.AbsoluteSize.Y and y < s.AbsoluteSize.Y then
-              row.nameLabel.Text = chat.spectrum(row.data.n)
+              row.nameLabel.Text = chat.title(row)
             end
           end
         end
@@ -18662,15 +18679,14 @@ function M.Attach(tab, Window, cfg)
       en.meta,
     }, true)
 
-    if not mine then
-      en.nameLabel = U.label({
-        AutomaticSize = "XY",
-        TextSize = 13,
-        LayoutOrder = 1,
-        Weight = "SemiBold",
-      }, { U.pad(0, 0, 4, 0) })
-      chat.paint(en)
-    end
+    en.nameLabel = U.label({
+      AutomaticSize = "XY",
+      TextSize = 13,
+      LayoutOrder = 1,
+      TextXAlignment = align,
+      Weight = "SemiBold",
+    }, { U.pad(0, 0, mine and 0 or 4, mine and 4 or 0) })
+    chat.paint(en)
 
     en.holder = U.box({ AutomaticSize = "XY", GroupTransparency = fade and 1 or 0 }, {
       New("UIListLayout", { HorizontalAlignment = align, Padding = UDim.new(0, 3) }),
@@ -18755,7 +18771,7 @@ function M.Attach(tab, Window, cfg)
           end
         elseif now >= en.grace then
           local old = en.data
-          if old.m ~= d.m or old.e ~= d.e or old.n ~= d.n or old.t ~= d.t then
+          if old.m ~= d.m or old.e ~= d.e or old.n ~= d.n or old.v ~= d.v or old.t ~= d.t then
             en.data = d
             chat.update(en)
           end
@@ -18928,7 +18944,7 @@ function M.Attach(tab, Window, cfg)
     st.counter += 1
     local id = chat.uid()
     local key = string.format("%010d%06x%02x%04x", os.time(), id % 0x1000000, st.seq, st.counter % 0x10000)
-    local data = { n = chat.name(), i = id, m = text, t = os.time(), r = st.reply and table.clone(st.reply) }
+    local data = { n = chat.name(), i = id, m = text, t = os.time(), v = C.AdminVerified and chat.isAdmin() or nil, r = st.reply and table.clone(st.reply) }
     st.pending[key] = table.clone(data)
     chat.row(key, data, true)
     if st.reply then
@@ -19350,7 +19366,7 @@ function M.Attach(tab, Window, cfg)
       st.force = true
       chat.clear()
     end
-    if t.Anonymous ~= nil or t.AdminRainbow ~= nil then chat.sync() end
+    if t.Anonymous ~= nil or t.AdminRainbow ~= nil or t.AdminVerified ~= nil then chat.sync() end
     chat.adminSwitch()
     chat.setup()
     return api
